@@ -214,29 +214,29 @@ contract("ZoneFactory + Zone", (accounts) => {
     });
 
     tellerImplementationInstance = await Teller.new({ from: owner });
-    usersInstance = await Users.new(
-      geoInstance.address,
-      certifierRegistryInstance.address,
-      { from: owner }
-    );
+    // usersInstance = await Users.new(
+    //   geoInstance.address,
+    //   certifierRegistryInstance.address,
+    //   { from: owner }
+    // );
 
     zoneFactoryInstance = await ZoneFactory.new(
       dthInstance.address,
       geoInstance.address,
-      usersInstance.address,
+      // usersInstance.address,
       zoneImplementationInstance.address,
       tellerImplementationInstance.address,
       taxCollectorInstance.address,
       { from: owner }
     );
-    await usersInstance.setZoneFactory(zoneFactoryInstance.address, {
-      from: owner,
-    });
+    // await usersInstance.setZoneFactory(zoneFactoryInstance.address, {
+    //   from: owner,
+    // });
   });
 
   const createZone = async (from, dthAmount, countryCode, geohash) => {
     await dthInstance.mint(from, ethToWei(dthAmount), { from: owner });
-    console.log("createZone 1 ==>");
+
     const txCreate = await web3.eth.sendTransaction({
       from,
       to: dthInstance.address,
@@ -249,11 +249,11 @@ contract("ZoneFactory + Zone", (accounts) => {
       value: 0,
       gas: 4700000,
     });
-    console.log("createZone 2 ==>");
+
     const zoneAddress = await zoneFactoryInstance.geohashToZone(
       asciiToHex(geohash)
     );
-    console.log("createZone 3 ==>");
+
     const zoneInstance = await Zone.at(zoneAddress);
     const tellerAddress = await zoneInstance.teller();
     const tellerInstance = await Teller.at(tellerAddress);
@@ -301,7 +301,7 @@ contract("ZoneFactory + Zone", (accounts) => {
   };
 
   describe(">>> deploying a Zone", () => {
-    describe.only("[ERC223] ZoneFactory.createAndClaim(bytes2 _country, bytes7 _geohash, uint _dthAmount)", () => {
+    describe("[ERC223] ZoneFactory.createAndClaim(bytes2 _country, bytes7 _geohash, uint _dthAmount)", () => {
       it("should revert if country is disabled", async () => {
         await expectRevert2(
           createZone(
@@ -449,7 +449,7 @@ contract("ZoneFactory + Zone", (accounts) => {
       ));
       // await geoInstance.setCountryTierDailyLimit(asciiToHex(COUNTRY_CG), '0', '1000', { from: owner });
     });
-    describe.skip("AUCTION", () => {
+    describe("AUCTION", () => {
       describe("[ERC223] Zone.claimFreeZone(address _from, uint _dthAmount)", () => {
         it("should revert if cannot claim zone which has an owner", async () => {
           await expectRevert2(
@@ -538,10 +538,10 @@ contract("ZoneFactory + Zone", (accounts) => {
         });
       });
 
-      describe.skip("[ERC223] Zone.bid(address _from, uint _dthAmount)", () => {
+      describe("[ERC223] Zone.bid(address _from, uint _dthAmount)", () => {
         it("should revert if cooldown period not yet ended", async () => {
           await expectRevert2(
-            placeBid(user2, MIN_ZONE_DTH_STAKE + 11, zoneInstance.address),
+            placeBid(user2, MIN_ZONE_DTH_STAKE + 1, zoneInstance.address),
             "cooldown period did not end yet"
           );
         });
@@ -709,12 +709,22 @@ contract("ZoneFactory + Zone", (accounts) => {
           expect(lastAuction.state).to.be.bignumber.equal(
             ZONE_AUCTION_STATE_STARTED
           );
-          expect(lastAuction.startTime).to.be.bignumber.equal(
-            str(lastBlockTimestamp)
+
+          expect(lastAuction.startTime).to.be.bignumber.gte(
+            str(lastBlockTimestamp - 1)
           );
-          expect(lastAuction.endTime).to.be.bignumber.equal(
-            str(lastBlockTimestamp + BID_PERIOD)
+          expect(lastAuction.startTime).to.be.bignumber.lte(
+            str(lastBlockTimestamp + 1)
           );
+
+          expect(lastAuction.endTime).to.be.bignumber.gte(
+            str(lastBlockTimestamp + BID_PERIOD - 1)
+          );
+          expect(lastAuction.endTime).to.be.bignumber.lte(
+            str(lastBlockTimestamp + BID_PERIOD + 1)
+          );
+
+
           expect(lastAuction.highestBidder).to.equal(user1);
           expect(lastAuction.highestBid).to.be.bignumber.equal(
             ethToWei(MIN_ZONE_DTH_STAKE + 50)
@@ -722,7 +732,7 @@ contract("ZoneFactory + Zone", (accounts) => {
         });
       });
 
-      describe.skip("[ERC223] Zone.topUp(address _from, uint _dthAmount)", () => {
+      describe("[ERC223] Zone.topUp(address _from, uint _dthAmount)", () => {
         it("should revert if there is no zone owner", async () => {
           await zoneInstance.release({ from: user1 });
           await expectRevert2(
@@ -786,7 +796,7 @@ contract("ZoneFactory + Zone", (accounts) => {
         });
       });
 
-      describe.skip("Zone.release()", () => {
+      describe("Zone.release()", () => {
         it("should revert if caller is not the zone owner", async () => {
           await expectRevert(
             zoneInstance.release({ from: user2 }),
@@ -838,7 +848,7 @@ contract("ZoneFactory + Zone", (accounts) => {
         });
       });
 
-      describe.skip("Zone.withdrawFromAuction(uint _auctionId)", () => {
+      describe("Zone.withdrawFromAuction(uint _auctionId)", () => {
         it("should revert if auction does not exist", async () => {
           await timeTravel.inSecs(COOLDOWN_PERIOD + ONE_HOUR);
           await placeBid(user2, MIN_ZONE_DTH_STAKE + 11, zoneInstance.address); // loser, can withdraw
@@ -942,7 +952,7 @@ contract("ZoneFactory + Zone", (accounts) => {
               await web3.eth.getBlock(tx.receipt.blockNumber)
             ).timestamp;
           });
-          it.skip("after current bid and release zone, zoneOwner stake + balance should be updated to good amount", async () => {
+          it("multiple check on zone", async () => {
             let zoneOwnerAfter = zoneOwnerToObjPretty(
               await zoneInstance.getZoneOwner()
             );
@@ -971,69 +981,11 @@ contract("ZoneFactory + Zone", (accounts) => {
               weiToEth((await zoneInstance.auctionBids(1, user3)).toString())
             );
 
-            // // user 3 delete its zone
-            // await zoneInstance.release({ from: user3 });
-            // await timeTravel.inSecs(COOLDOWN_PERIOD + ONE_HOUR);
-            // zoneOwnerAfter = zoneOwnerToObjPretty(
-            //   await zoneInstance.getZoneOwner()
-            // );
-            // console.log(
-            //   "\n\n----->zone owner after release by user 3 \n",
-            //   zoneOwnerAfter,
-            //   "zone DTH balance",
-            //   weiToEth(
-            //     (await dthInstance.balanceOf(zoneInstance.address)).toString()
-            //   )
-            // );
-            // // OWNERTOGEOHASH
-            // console.log(
-            //   "\n\n%%% USER 3 AFTER RELEASE %%%",
-            //   await zoneFactoryInstance.ownerToZone(user3),
-            //   "\n DTH BALANCE\n",
-            //   weiToEth((await dthInstance.balanceOf(user3)).toString()),
-            //   "\n%%% Active bidder to zone %%%\n",
-            //   await zoneFactoryInstance.activeBidderToZone(user3),
-            //   "\nwithdrawableDth (owner)\n",
-            //   weiToEth((await zoneInstance.withdrawableDth(user3)).toString()),
-            //   "\nbid amount form this auction\n",
-            //   weiToEth((await zoneInstance.auctionBids(1, user3)).toString())
-            // );
-
-            //   // user 3 claim the zone again
-            //   await claimFreeZone(
-            //     user3,
-            //     MIN_ZONE_DTH_STAKE,
-            //     zoneInstance.address
-            //   );
-            //   zoneOwnerAfter = zoneOwnerToObjPretty(
-            //     await zoneInstance.getZoneOwner()
-            //   );
-            //   console.log(
-            //     "\n\n----->zone owner after claim again by user 3 \n",
-            //     zoneOwnerAfter,
-            //     "zone DTH balance",
-            //     weiToEth(
-            //       (await dthInstance.balanceOf(zoneInstance.address)).toString()
-            //     )
-            //   );
-            //   console.log(
-            //     "\n\n%%% USER 3 AFTER RELEASE %%%",
-            //     await zoneFactoryInstance.ownerToZone(user3),
-            //     "\n DTH BALANCE\n",
-            //     weiToEth((await dthInstance.balanceOf(user3)).toString()),
-            //     "\n%%% Active bidder to zone %%%\n",
-            //     await zoneFactoryInstance.activeBidderToZone(user3),
-            //     "\nwithdrawableDth (owner)\n",
-            //     weiToEth((await zoneInstance.withdrawableDth(user3)).toString()),
-            //     "\nbid amount form this auction\n",
-            //     weiToEth((await zoneInstance.auctionBids(1, user3)).toString())
-            //   );
-
             // user2 open a bid on
             await timeTravel.inSecs(COOLDOWN_PERIOD + 120);
             await placeBid(
               user2,
-              MIN_ZONE_DTH_STAKE + 80,
+              MIN_ZONE_DTH_STAKE + 100,
               zoneInstance.address
             ); //
             let auctionLive = auctionToObj(await zoneInstance.getLastAuction());
@@ -1140,62 +1092,6 @@ contract("ZoneFactory + Zone", (accounts) => {
               "\nbid amount form this auction\n",
               weiToEth((await zoneInstance.auctionBids(2, user3)).toString())
             );
-
-            //   await placeBid(
-            //     user1,
-            //     MIN_ZONE_DTH_STAKE + 80,
-            //     zoneInstance.address
-            //   );
-            //   zoneOwnerAfter = zoneOwnerToObjPretty(
-            //     await zoneInstance.getZoneOwner()
-            //   );
-            //   console.log(
-            //     "\n\n\n----> user 1 biz on the auction \n",
-            //     zoneOwnerAfter,
-            //     "zone DTH balance",
-            //     weiToEth(
-            //       (await dthInstance.balanceOf(zoneInstance.address)).toString()
-            //     )
-            //   );
-            //   auctionLive = auctionToObjPretty(
-            //     await zoneInstance.getLastAuction()
-            //   );
-            //   console.log("\nCURRENT AUCTION:\n", auctionLive);
-
-            //   console.log(
-            //     "\n\n%%% OWNER TO ZONE USER 1 -> 180 %%%",
-            //     await zoneFactoryInstance.ownerToZone(user1),
-            //     "\n DTH BALANCE\n",
-            //     weiToEth((await dthInstance.balanceOf(user1)).toString()),
-            //     "\n%%% Active bidder to zone %%%\n",
-            //     await zoneFactoryInstance.activeBidderToZone(user1),
-            //     "\nwithdrawableDth (owner)\n",
-            //     weiToEth((await zoneInstance.withdrawableDth(user1)).toString()),
-            //     "\nbid amount form this auction\n",
-            //     weiToEth((await zoneInstance.auctionBids(2, user1)).toString())
-            //   );
-            //   console.log(
-            //     "\n\n%%% OWNER TO ZONE USER 2 -> 120  %%%",
-            //     await zoneFactoryInstance.ownerToZone(user2),
-            //     "\n DTH BALANCE\n",
-            //     weiToEth((await dthInstance.balanceOf(user2)).toString()),
-            //     "\n%%% Active bidder to zone %%%\n",
-            //     await zoneFactoryInstance.activeBidderToZone(user2),
-            //     "\nwithdrawableDth (owner)\n",
-            //     weiToEth((await zoneInstance.withdrawableDth(user2)).toString()),
-            //     "\nbid amount form this auction\n",
-            //     weiToEth((await zoneInstance.auctionBids(2, user2)).toString())
-            //   );
-            //   console.log(
-            //     "\n\n%%% OWNER TO ZONE USER 3 -> 100 + 50 %%%",
-            //     await zoneFactoryInstance.ownerToZone(user3),
-            //     "\n DTH BALANCE\n",
-            //     weiToEth((await dthInstance.balanceOf(user3)).toString()),
-            //     "\nwithdrawableDth (owner)\n",
-            //     weiToEth((await zoneInstance.withdrawableDth(user3)).toString()),
-            //     "\nbid amount form this auction\n",
-            //     weiToEth((await zoneInstance.auctionBids(2, user3)).toString())
-            //   );
             await placeBid(
               user1,
               MIN_ZONE_DTH_STAKE + 200,
@@ -1307,114 +1203,6 @@ contract("ZoneFactory + Zone", (accounts) => {
               "\nbid amount form this auction\n",
               weiToEth((await zoneInstance.auctionBids(2, user3)).toString())
             );
-
-            //   await placeBid(user3, 120, zoneInstance.address);
-            //   zoneOwnerAfter = zoneOwnerToObjPretty(
-            //     await zoneInstance.getZoneOwner()
-            //   );
-            //   console.log(
-            //     "\n\n\n----> USER 3 placer a  bid again\n",
-            //     zoneOwnerAfter,
-            //     "zone DTH balance",
-            //     weiToEth(
-            //       (await dthInstance.balanceOf(zoneInstance.address)).toString()
-            //     )
-            //   );
-            //   auctionLive = auctionToObjPretty(
-            //     await zoneInstance.getLastAuction()
-            //   );
-            //   console.log("\nCURRENT AUCTION:\n", auctionLive);
-
-            //   console.log(
-            //     "\n\n%%% OWNER TO ZONE USER 1 -> 180 %%%",
-            //     await zoneFactoryInstance.ownerToZone(user1),
-            //     "\n DTH BALANCE\n",
-            //     weiToEth((await dthInstance.balanceOf(user1)).toString()),
-            //     "\n%%% Active bidder to zone %%%\n",
-            //     await zoneFactoryInstance.activeBidderToZone(user1),
-            //     "\nwithdrawableDth (owner)\n",
-            //     weiToEth((await zoneInstance.withdrawableDth(user1)).toString()),
-            //     "\nbid amount form this auction\n",
-            //     weiToEth((await zoneInstance.auctionBids(2, user1)).toString())
-            //   );
-            //   console.log(
-            //     "\n\n%%% OWNER TO ZONE USER 2 -> 120 + 100 %%%",
-            //     await zoneFactoryInstance.ownerToZone(user2),
-            //     "\n DTH BALANCE\n",
-            //     weiToEth((await dthInstance.balanceOf(user2)).toString()),
-            //     "\n%%% Active bidder to zone %%%\n",
-            //     await zoneFactoryInstance.activeBidderToZone(user2),
-            //     "\nwithdrawableDth (owner)\n",
-            //     weiToEth((await zoneInstance.withdrawableDth(user2)).toString()),
-            //     "\nbid amount form this auction\n",
-            //     weiToEth((await zoneInstance.auctionBids(2, user2)).toString())
-            //   );
-            //   console.log(
-            //     "\n\n%%% OWNER TO ZONE USER 3 -> 100 (as owner) + 50 + 120  %%%",
-            //     await zoneFactoryInstance.ownerToZone(user3),
-            //     "\n DTH BALANCE\n",
-            //     weiToEth((await dthInstance.balanceOf(user3)).toString()),
-            //     "\nwithdrawableDth (owner)\n",
-            //     weiToEth((await zoneInstance.withdrawableDth(user3)).toString()),
-            //     "\nbid amount form this auction\n",
-            //     weiToEth((await zoneInstance.auctionBids(2, user3)).toString())
-            //   );
-
-            //   await placeBid(user2, 150, zoneInstance.address);
-            //   zoneOwnerAfter = zoneOwnerToObjPretty(
-            //     await zoneInstance.getZoneOwner()
-            //   );
-            //   console.log(
-            //     "\n\n\n----> USER 2 place a bid again \n",
-            //     zoneOwnerAfter,
-            //     "zone DTH balance",
-            //     weiToEth(
-            //       (await dthInstance.balanceOf(zoneInstance.address)).toString()
-            //     )
-            //   );
-            //   auctionLive = auctionToObjPretty(
-            //     await zoneInstance.getLastAuction()
-            //   );
-            //   console.log("\nCURRENT AUCTION:\n", auctionLive);
-
-            //   console.log(
-            //     "\n\n%%% OWNER TO ZONE USER 1 -> 180 %%%",
-            //     await zoneFactoryInstance.ownerToZone(user1),
-            //     "\n DTH BALANCE\n",
-            //     weiToEth((await dthInstance.balanceOf(user1)).toString()),
-            //     "\n%%% Active bidder to zone %%%\n",
-            //     await zoneFactoryInstance.activeBidderToZone(user1),
-            //     "\nwithdrawableDth (owner)\n",
-            //     weiToEth((await zoneInstance.withdrawableDth(user1)).toString()),
-            //     "\nbid amount form this auction\n",
-            //     weiToEth((await zoneInstance.auctionBids(2, user1)).toString())
-            //   );
-            //   console.log(
-            //     "\n\n%%% OWNER TO ZONE USER 2 -> 120 + 100 + 150 %%%",
-            //     await zoneFactoryInstance.ownerToZone(user2),
-            //     "\n DTH BALANCE\n",
-            //     weiToEth((await dthInstance.balanceOf(user2)).toString()),
-            //     "\n%%% Active bidder to zone %%%\n",
-            //     await zoneFactoryInstance.activeBidderToZone(user2),
-            //     "\nwithdrawableDth (owner)\n",
-            //     weiToEth((await zoneInstance.withdrawableDth(user2)).toString()),
-            //     "\nbid amount form this auction\n",
-            //     weiToEth((await zoneInstance.auctionBids(2, user2)).toString())
-            //   );
-            //   console.log(
-            //     "\n\n%%% OWNER TO ZONE USER 3 -> 100 + 50 + 120  %%%",
-            //     await zoneFactoryInstance.ownerToZone(user3),
-            //     "\n DTH BALANCE\n",
-            //     weiToEth((await dthInstance.balanceOf(user3)).toString()),
-            //     "\n%%% Active bidder to zone %%%\n",
-            //     await zoneFactoryInstance.activeBidderToZone(user3),
-            //     "\nwithdrawableDth (owner)\n",
-            //     weiToEth((await zoneInstance.withdrawableDth(user3)).toString()),
-            //     "\nbid amount form this auction\n",
-            //     weiToEth((await zoneInstance.auctionBids(2, user3)).toString())
-            //   );
-
-            //   // calcul each balance
 
             // advance in time
             await timeTravel.inSecs(BID_PERIOD + 120);
@@ -1614,61 +1402,6 @@ contract("ZoneFactory + Zone", (accounts) => {
               "\nbid amount form this auction\n",
               weiToEth((await zoneInstance.auctionBids(2, user2)).toString())
             );
-
-            //   // user 3 withdraw from auction
-            //   await zoneInstance.withdrawFromAuction("2", { from: user3 });
-            //   zoneOwnerAfter = zoneOwnerToObjPretty(
-            //     await zoneInstance.getZoneOwner()
-            //   );
-            //   console.log(
-            //     "\n\n\n----> USER 3 WITHDRAW FROM AUCTION\n",
-            //     zoneOwnerAfter,
-            //     "zone DTH balance",
-            //     weiToEth(
-            //       (await dthInstance.balanceOf(zoneInstance.address)).toString()
-            //     )
-            //   );
-            //   auctionLive = auctionToObjPretty(
-            //     await zoneInstance.getLastAuction()
-            //   );
-            //   console.log("\nCURRENT AUCTION:\n", auctionLive);
-
-            //   console.log(
-            //     "\n\n%%% OWNER TO ZONE USER 1 -> 180 %%%",
-            //     await zoneFactoryInstance.ownerToZone(user1),
-            //     "\n DTH BALANCE\n",
-            //     weiToEth((await dthInstance.balanceOf(user1)).toString()),
-            //     "\n%%% Active bidder to zone %%%\n",
-            //     await zoneFactoryInstance.activeBidderToZone(user1),
-            //     "\nwithdrawableDth (owner)\n",
-            //     weiToEth((await zoneInstance.withdrawableDth(user1)).toString()),
-            //     "\nbid amount form this auction\n",
-            //     weiToEth((await zoneInstance.auctionBids(2, user1)).toString())
-            //   );
-            //   console.log(
-            //     "\n\n%%% OWNER TO ZONE USER 2 -> 120 + 100 + 150 %%%",
-            //     await zoneFactoryInstance.ownerToZone(user2),
-            //     "\n DTH BALANCE\n",
-            //     weiToEth((await dthInstance.balanceOf(user2)).toString()),
-            //     "\n%%% Active bidder to zone %%%\n",
-            //     await zoneFactoryInstance.activeBidderToZone(user2),
-            //     "\nwithdrawableDth (owner)\n",
-            //     weiToEth((await zoneInstance.withdrawableDth(user2)).toString()),
-            //     "\nbid amount form this auction\n",
-            //     weiToEth((await zoneInstance.auctionBids(2, user2)).toString())
-            //   );
-            //   console.log(
-            //     "\n\n%%% OWNER TO ZONE USER 3 -> 100 + 50 + 120  %%%",
-            //     await zoneFactoryInstance.ownerToZone(user3),
-            //     "\n DTH BALANCE\n",
-            //     weiToEth((await dthInstance.balanceOf(user3)).toString()),
-            //     "\n%%% Active bidder to zone %%%\n",
-            //     await zoneFactoryInstance.activeBidderToZone(user3),
-            //     "\nwithdrawableDth (owner)\n",
-            //     weiToEth((await zoneInstance.withdrawableDth(user3)).toString()),
-            //     "\nbid amount form this auction\n",
-            //     weiToEth((await zoneInstance.auctionBids(2, user3)).toString())
-            //   );
           });
           it("user auction bid should be reset to 0", () => {
             expect(
@@ -1765,7 +1498,7 @@ contract("ZoneFactory + Zone", (accounts) => {
           });
         });
       });
-      describe.skip("Zone.withdrawFromAuctions(uint[] _auctionIds)", () => {
+      describe("Zone.withdrawFromAuctions(uint[] _auctionIds)", () => {
         it("should succeed to withdraw all of a users withdrawable bids", async () => {
           // TO DO: modify the test with MIN_RAISE of 5% ans
           // auction 1
@@ -1900,7 +1633,7 @@ contract("ZoneFactory + Zone", (accounts) => {
       });
     });
 
-    describe.skip("TELLER", () => {
+    describe("TELLER", () => {
       describe("Teller.addTeller(bytes _position, uint8 _currencyId, bytes16 _messenger, int16 _sellRate, int16 _buyRate, bytes1 _settings)", () => {
         it("should revert if position is empty bytes array", async () => {
           await expectRevert(
@@ -2028,7 +1761,7 @@ contract("ZoneFactory + Zone", (accounts) => {
               asciiToHex(TELLER_CG_POSITION),
               TELLER_CG_CURRENCY_ID,
               asciiToHex(TELLER_CG_MESSENGER),
-              "-10000",
+              -10000,
               TELLER_CG_BUYRATE,
               TELLER_CG_SETTINGS,
               ADDRESS_ZERO,
@@ -2080,7 +1813,7 @@ contract("ZoneFactory + Zone", (accounts) => {
               TELLER_CG_CURRENCY_ID,
               asciiToHex(TELLER_CG_MESSENGER),
               TELLER_CG_SELLRATE,
-              "-10000",
+              -10000,
               TELLER_CG_SETTINGS,
               ADDRESS_ZERO,
               TELLER_CG_REFFEE,
@@ -2376,7 +2109,7 @@ contract("ZoneFactory + Zone", (accounts) => {
     });
   });
 
-  describe.skip("TaxCollector", () => {
+  describe("TaxCollector", () => {
     let zoneInstance;
     let tellerInstance;
 
@@ -2430,7 +2163,7 @@ contract("ZoneFactory + Zone", (accounts) => {
     });
   });
 
-  describe.skip("Getters", () => {
+  describe("Getters", () => {
     describe("[ pure ]", () => {
       let zoneInstance;
       let tellerInstance;
@@ -2572,7 +2305,7 @@ contract("ZoneFactory + Zone", (accounts) => {
       });
     });
     // test certifierregistry contract
-    describe.skip("certifierRegistry.sol", () => {
+    describe("certifierRegistry.sol", () => {
       describe("certifierRegistry.sol", () => {
         it("should register a new certifier", async () => {
           const urlCert = "dether.io/certifier";

@@ -26,8 +26,8 @@ const MIN_ZONE_DTH_STAKE = 100;
 
 const ONE_HOUR = 60 * 60;
 const ONE_DAY = ONE_HOUR * 24;
-const BID_PERIOD = 60 * 8; // 30MIN
-const COOLDOWN_PERIOD = 60; // 5MIN
+const BID_PERIOD = 60 * 60 * 48; // 48 hours
+const COOLDOWN_PERIOD = 60 * 60 * 24; // 24 hours
 
 const KLEROS_ARBITRATION_PRICE = 1; // eth
 const KLEROS_DISPUTE_TIMEOUT = 60; // seconds
