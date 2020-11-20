@@ -3,8 +3,6 @@ pragma solidity ^0.5.17;
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
-import "../interfaces/IGeoRegistry.sol";
-
 contract Settings is Ownable {
     // ------------------------------------------------
     //
@@ -35,7 +33,6 @@ contract Settings is Ownable {
     //
     // ------------------------------------------------
 
-    IGeoRegistry public geo;
     mapping(bytes2 =>  Params_t ) public protocolParams;
     
     Params_t defaultValue = Params_t({
@@ -48,15 +45,6 @@ contract Settings is Ownable {
         _changed : false
     });
 
-    // Params_t defaultValues = Params_t({
-    //     100 ether,
-    //     48 hours,
-    //     24 hours,
-    //     4,
-    //     4,
-    //     6,
-    //     false,
-    // })
 
     // ------------------------------------------------
     //
@@ -66,15 +54,7 @@ contract Settings is Ownable {
 
     event ChangeParams(string params);
 
-    // ------------------------------------------------
-    //
-    // Constructor
-    //
-    // ------------------------------------------------
 
-    constructor(address _geo) public {
-        geo = IGeoRegistry(_geo);
-    }
 
     // ------------------------------------------------
     //
@@ -90,17 +70,8 @@ contract Settings is Ownable {
         uint256 ZONE_TAX,
         uint256 MIN_RAISE
     ) {
-        if (protocolParams[zoneCountry].FLOOR_STAKE_PRICE > 0 && !protocolParams[zoneCountry]._changed )
+        if (protocolParams[zoneCountry].FLOOR_STAKE_PRICE > 0 && protocolParams[zoneCountry]._changed )
         {
-            return (
-                100 ether,      // == 100 DTH
-                48 hours,       
-                24 hours,
-                4,              // 4% of the amount already staked
-                4,              // 0.04% daily, around 15% yearly
-                6               // everybid should be more than 6% that the previous highestbid
-            );
-        } 
             return (
                 protocolParams[zoneCountry].FLOOR_STAKE_PRICE,
                 protocolParams[zoneCountry].BID_PERIOD,
@@ -109,9 +80,30 @@ contract Settings is Ownable {
                 protocolParams[zoneCountry].ZONE_TAX,
                 protocolParams[zoneCountry].MIN_RAISE
             );
+
+        } else { // return default value
+            return (
+                100 ether,      // == 100 DTH
+                48 hours,       
+                24 hours,
+                4,              // 4% of the amount already staked
+                4,              // 0.04% daily, around 15% yearly
+                6               // everybid should be more than 6% that the previous highestbid
+            );
+        }
+
         
     }
 
+    function getZonePrice (bytes2 zoneCountry) public view returns (uint256 price) {
+        if (protocolParams[zoneCountry].FLOOR_STAKE_PRICE > 0 && protocolParams[zoneCountry]._changed ) {
+             return protocolParams[zoneCountry].FLOOR_STAKE_PRICE;
+
+        } else {
+                       return 100 ether;
+        }
+    }
+    // event SetParams(uint256FLOOR_STAKE_PRICE,)
     function setParams (
         bytes2 zoneCountry,
         uint256 FLOOR_STAKE_PRICE,
@@ -142,5 +134,6 @@ contract Settings is Ownable {
             protocolParams[zoneCountry].ZONE_TAX = ZONE_TAX;
             protocolParams[zoneCountry].MIN_RAISE = MIN_RAISE;
             protocolParams[zoneCountry]._changed = true;
+            // emit
         }
 }

@@ -10,6 +10,7 @@ const ZoneFactory = artifacts.require("ZoneFactory");
 const Zone = artifacts.require("Zone");
 const Teller = artifacts.require("Teller");
 const TaxCollector = artifacts.require("TaxCollector");
+const Settings = artifacts.require("Settings");
 
 const Web3 = require("web3");
 
@@ -191,6 +192,7 @@ contract("ZoneFactory + Zone", (accounts) => {
   let tellerImplementationInstance;
   let certifierRegistryInstance;
   let taxCollectorInstance;
+  let settingsInstance;
 
   before(async () => {
     __rootState__ = await timeTravel.saveState();
@@ -208,25 +210,27 @@ contract("ZoneFactory + Zone", (accounts) => {
     certifierRegistryInstance = await CertifierRegistry.new({ from: owner });
     geoInstance = await GeoRegistry.new({ from: owner });
 
+    settingsInstance = await Settings.new( {from: owner});
     zoneImplementationInstance = await Zone.new({
       from: owner,
       gas: 130000000,
     });
 
     tellerImplementationInstance = await Teller.new({ from: owner });
-    // usersInstance = await Users.new(
-    //   geoInstance.address,
-    //   certifierRegistryInstance.address,
-    //   { from: owner }
-    // );
+    usersInstance = await Users.new(
+      geoInstance.address,
+      certifierRegistryInstance.address,
+      { from: owner }
+    );
 
     zoneFactoryInstance = await ZoneFactory.new(
       dthInstance.address,
       geoInstance.address,
-      // usersInstance.address,
+      usersInstance.address,
       zoneImplementationInstance.address,
       tellerImplementationInstance.address,
       taxCollectorInstance.address,
+      settingsInstance.address,
       { from: owner }
     );
     // await usersInstance.setZoneFactory(zoneFactoryInstance.address, {
@@ -340,7 +344,7 @@ contract("ZoneFactory + Zone", (accounts) => {
           COUNTRY_CG,
           VALID_CG_ZONE_GEOHASH
         );
-        await expectRevert3(
+        await expectRevert2(
           createZone(
             user1,
             MIN_ZONE_DTH_STAKE,
@@ -361,7 +365,7 @@ contract("ZoneFactory + Zone", (accounts) => {
             COUNTRY_CG,
             VALID_CG_ZONE_GEOHASH
           ),
-          "zone dth stake should be at least minimum (100DTH)"
+          "DTH staked are not enough for this zone"
         );
       });
 

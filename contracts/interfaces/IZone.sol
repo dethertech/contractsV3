@@ -23,7 +23,6 @@ contract IZone {
 
     function withdrawableEth(address) public view returns (uint256);
 
-    // function init(bytes2 _countryCode, bytes6 _geohash, address _zoneOwner, uint256 _dthAmount, address _dth, address _geo, address _zoneFactory, address _taxCollector, address _teller) external;
     function init(
         bytes2 _countryCode,
         bytes6 _geohash,
@@ -32,7 +31,8 @@ contract IZone {
         address _dth,
         address _zoneFactory,
         address _taxCollector,
-        address _teller
+        address _teller,
+        address _settings
     ) external;
 
     function connectToTellerContract(address _teller) external;

@@ -8,6 +8,7 @@ import "../interfaces/IUsers.sol";
 import "../interfaces/IGeoRegistry.sol";
 import "../interfaces/IZone.sol";
 import "../interfaces/ITeller.sol";
+import "../interfaces/ISettings.sol";
 
 contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
     // ------------------------------------------------
@@ -26,6 +27,7 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
     IDetherToken public dth;
     IGeoRegistry public geo;
     IUsers public users;
+    ISettings public protocolSettings;
 
     address public zoneImplementation;
     address public tellerImplementation;
@@ -95,7 +97,8 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
         address _users,
         address _zoneImplementation,
         address _tellerImplementation,
-        address _taxCollector
+        address _taxCollector,
+        address _protocolSettings
     ) public {
         require(_dth != address(0), "dth address cannot be 0x0");
         require(_geo != address(0), "geo address cannot be 0x0");
@@ -112,10 +115,12 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
         dth = IDetherToken(_dth);
         geo = IGeoRegistry(_geo);
         users = IUsers(_users);
+        protocolSettings = ISettings(_protocolSettings);
 
         zoneImplementation = _zoneImplementation;
         tellerImplementation = _tellerImplementation;
         taxCollector = _taxCollector;
+
     }
 
     // ------------------------------------------------
@@ -312,7 +317,6 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
     /*
      * Wait for a tranfer from DTH TOKEN CONTRACT to create zone and teller contract associated with the zone.
      */
-
     function tokenFallback(
         address _from,
         uint256 _value,
@@ -326,7 +330,6 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
         require(_data.length == 8, "createAndClaim expects 8 bytes as data");
         address sender = _from;
         uint256 dthAmount = _value;
-
         bytes2 country = toBytes2(_data, 0);
         bytes6 geohash = toBytes6(_data, 2);
         require(geo.zoneIsEnabled(country), "country is disabled");
@@ -346,7 +349,6 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
         // deploy zone + teller contract
         address newZoneAddress = createClone(zoneImplementation);
         address newTellerAddress = createClone(tellerImplementation);
-
         IZone(newZoneAddress).init(
             country,
             geohash,
@@ -355,7 +357,8 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
             address(dth),
             address(this),
             taxCollector,
-            newTellerAddress // audit feedback
+            newTellerAddress,
+            address(protocolSettings)
         );
         ITeller(newTellerAddress).init(address(geo), newZoneAddress);
 

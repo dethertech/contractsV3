@@ -7,6 +7,7 @@ import "../interfaces/IDetherToken.sol";
 import "../interfaces/IZoneFactory.sol";
 import "../interfaces/IZone.sol";
 import "../interfaces/ITeller.sol";
+import "../interfaces/ISettings.sol";
 
 contract Zone is IERC223ReceivingContract {
     // ------------------------------------------------
@@ -54,21 +55,23 @@ contract Zone is IERC223ReceivingContract {
     //
     // ------------------------------------------------
 
-    uint256 public constant MIN_STAKE = 100 ether; // DTH, which is also 18 decimals!
+    uint256 public FLOOR_STAKE_PRICE; // DTH, which is also 18 decimals!
 
-    uint256 public constant BID_PERIOD = 48 hours; // mainnet params
-    uint256 public constant COOLDOWN_PERIOD = 24 hours; // mainnet params
-    uint256 public constant ENTRY_FEE_PERCENTAGE = 4; // in %
-    uint256 public constant TAX_PERCENTAGE = 4; // 0,04% daily / around 15% yearly
+    uint256 public BID_PERIOD; // mainnet params
+    uint256 public COOLDOWN_PERIOD; // mainnet params
+    uint256 public ENTRY_FEE; // in %
+    uint256 public ZONE_TAX; // 0,04% daily / around 15% yearly
 
-    uint256 public constant MIN_RAISE = 6; // everybid should be more than x% that the previous highestbid
+    uint256 public MIN_RAISE; // everybid should be more than x% that the previous highestbid
 
+    // Params public zoneParams;
     bool private inited;
 
     IDetherToken public dth;
     IZoneFactory public zoneFactory;
     ITeller public teller;
     ZoneOwner public zoneOwner;
+    ISettings public protocolSettings;
     address public taxCollector;
 
     bytes2 public country;
@@ -120,15 +123,17 @@ contract Zone is IERC223ReceivingContract {
         address _zoneOwner,
         uint256 _dthAmount,
         address _dth,
-        // address _geo,
         address _zoneFactory,
         address _taxCollector,
-        address _teller
+        address _teller,
+        address _protocolSettings
     ) external {
         require(inited == false, "contract already initialized");
+        protocolSettings = ISettings(_protocolSettings);
+        uint256 zonePrice = protocolSettings.getZonePrice(_countryCode);
         require(
-            _dthAmount >= MIN_STAKE,
-            "zone dth stake should be at least minimum (100DTH)"
+            _dthAmount >= zonePrice,
+            "DTH staked are not enough for this zone"
         );
 
         country = _countryCode;
@@ -148,6 +153,7 @@ contract Zone is IERC223ReceivingContract {
         inited = true;
         currentAuctionId = 0;
         teller = ITeller(_teller);
+        _setParams();
     }
 
     // ------------------------------------------------
@@ -169,7 +175,7 @@ contract Zone is IERC223ReceivingContract {
         // source: https://programtheblockchain.com/posts/2018/09/19/implementing-harberger-tax-deeds/
         taxAmount = _dthAmount
             .mul(_endTime.sub(_startTime))
-            .mul(TAX_PERCENTAGE)
+            .mul(ZONE_TAX)
             .div(10000)
             .div(1 days);
         keepAmount = _dthAmount.sub(taxAmount);
@@ -180,7 +186,7 @@ contract Zone is IERC223ReceivingContract {
         view
         returns (uint256 burnAmount, uint256 bidAmount)
     {
-        burnAmount = _value.mul(ENTRY_FEE_PERCENTAGE).div(100); // 4%
+        burnAmount = _value.mul(ENTRY_FEE).div(100); // 4%
         bidAmount = _value.sub(burnAmount); // 96%
     }
 
@@ -296,6 +302,18 @@ contract Zone is IERC223ReceivingContract {
     //
     // ------------------------------------------------
 
+    function _setParams(
+    ) private {
+        (uint256 zoneFloorPrice, uint256 bidPeriod, uint256 cooldownPeriod, uint256 entryFee, uint256 zoneTax, uint256 minRaise) = protocolSettings.getParams(country);
+
+        FLOOR_STAKE_PRICE = zoneFloorPrice;
+        BID_PERIOD = bidPeriod;
+        COOLDOWN_PERIOD = cooldownPeriod;
+        ENTRY_FEE = entryFee;
+        ZONE_TAX = zoneTax;
+        MIN_RAISE = minRaise;
+    }
+
     function _removeZoneOwner(bool fromRelease) private {
         // if we call this function from release() we shouldn't update withdrawableDth as we already send dth
         if (!fromRelease) {
@@ -408,6 +426,8 @@ contract Zone is IERC223ReceivingContract {
             currentAuctionId,
             highestBid
         );
+        // update zone params if changed
+        _setParams();
     }
 
     function processState() external /* onlyByTellerContract */
@@ -582,8 +602,9 @@ contract Zone is IERC223ReceivingContract {
         address _sender,
         uint256 _dthAmount // GAS COSt +/- 177.040
     ) private onlyWhenZoneHasNoOwner {
+        _setParams();
         require(
-            _dthAmount >= MIN_STAKE,
+            _dthAmount >= FLOOR_STAKE_PRICE,
             "need at least minimum zone stake amount (100 DTH)"
         );
         require(
