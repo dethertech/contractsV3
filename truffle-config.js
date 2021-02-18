@@ -17,7 +17,7 @@ module.exports = {
       provider: () =>
         new HDWalletProvider(
           MNEMONIC,
-          `https://kovan.infura.io/v3/v3/${INFURA_KEY}`
+          `https://kovan.infura.io/v3/${INFURA_KEY}`
         ),
 
       // provider: () => new HDWalletProvider(MNEMONIC, 'http://localhost:8545'),

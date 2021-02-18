@@ -210,10 +210,9 @@ contract("ZoneFactory + Zone", (accounts) => {
     certifierRegistryInstance = await CertifierRegistry.new({ from: owner });
     geoInstance = await GeoRegistry.new({ from: owner });
 
-    settingsInstance = await Settings.new( {from: owner});
+    settingsInstance = await Settings.new({ from: owner });
     zoneImplementationInstance = await Zone.new({
       from: owner,
-      gas: 130000000,
     });
 
     tellerImplementationInstance = await Teller.new({ from: owner });
@@ -727,7 +726,6 @@ contract("ZoneFactory + Zone", (accounts) => {
           expect(lastAuction.endTime).to.be.bignumber.lte(
             str(lastBlockTimestamp + BID_PERIOD + 1)
           );
-
 
           expect(lastAuction.highestBidder).to.equal(user1);
           expect(lastAuction.highestBid).to.be.bignumber.equal(

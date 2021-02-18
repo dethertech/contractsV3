@@ -3,6 +3,8 @@ pragma solidity ^0.5.17;
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
+// This contracts will be change to an aragon DAO
+
 contract Settings is Ownable {
     // ------------------------------------------------
     //

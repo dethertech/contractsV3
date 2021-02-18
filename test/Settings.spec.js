@@ -215,16 +215,13 @@ contract("Zone + Settings", (accounts) => {
     settingsInstance = await Settings.new({ from: owner });
     zoneImplementationInstance = await Zone.new({
       from: owner,
-      gas: 130000000,
     });
-
     tellerImplementationInstance = await Teller.new({ from: owner });
     usersInstance = await Users.new(
       geoInstance.address,
       certifierRegistryInstance.address,
       { from: owner }
     );
-
     zoneFactoryInstance = await ZoneFactory.new(
       dthInstance.address,
       geoInstance.address,
@@ -235,9 +232,6 @@ contract("Zone + Settings", (accounts) => {
       settingsInstance.address,
       { from: owner }
     );
-    // await usersInstance.setZoneFactory(zoneFactoryInstance.address, {
-    //   from: owner,
-    // });
   });
 
   const createZone = async (from, dthAmount, countryCode, geohash) => {
@@ -325,6 +319,7 @@ contract("Zone + Settings", (accounts) => {
       //   COUNTRY_CG,
       //   VALID_CG_ZONE_GEOHASH
       // ));
+      // console.log("YOLO");
       // await timeTravel.inSecs(COOLDOWN_PERIOD + ONE_HOUR);
       // let zoneOwnerAfter = zoneOwnerToObjPretty(
       //   await zoneInstance.getZoneOwner()
@@ -468,7 +463,7 @@ contract("Zone + Settings", (accounts) => {
       );
     });
 
-    it.only("owner should be able to modify COOLDOWN_PERIOD", async () => {
+    it("owner should be able to modify COOLDOWN_PERIOD", async () => {
       await settingsInstance.setParams(
         asciiToHex(COUNTRY_CG),
         ethToWei(MIN_ZONE_DTH_STAKE),

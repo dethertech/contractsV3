@@ -7,13 +7,17 @@
     "test": "test"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test-settings": "truffle test test/Settings.spec.js",
+    "test-zone": "truffle test test/ZoneFactory-Zone.spec.js",
+    "test-shop": "truffle test test/Shops.spec.js",
+    "ganache": "ganache-cli --gasLimit 15000000 --allowUnlimitedContractSize"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@truffle/hdwallet-provider": "^1.2.0",
     "dotenv": "^8.2.0",
+    "ganache-cli": "^6.12.2",
     "openzeppelin-solidity": "2.5.1",
     "truffle": "^5.1.52"
   },
