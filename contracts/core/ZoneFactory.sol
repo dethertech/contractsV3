@@ -321,7 +321,7 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
         address _from,
         uint256 _value,
         bytes memory _data // GAS COST +/- 3.763.729
-    ) public  {
+    ) public override {
         require(
             msg.sender == address(dth),
             "can only be called by dth contract"

@@ -40,7 +40,7 @@ contract TaxCollector is IERC223ReceivingContract, Ownable {
         address _from,
         uint256 _value,
         bytes memory _data
-    ) public  {
+    ) public override {
         emit ReceivedTaxes(msg.sender, _value, _from);
     }
 }

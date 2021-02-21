@@ -661,7 +661,7 @@ contract Zone is IERC223ReceivingContract {
         address _from,
         uint256 _value,
         bytes memory _data // onlyWhenZoneEnabled
-    ) public  {
+    ) public override {
         require(inited == true, "contract not yet initialized");
         require(
             msg.sender == address(dth),

@@ -65,14 +65,14 @@ contract ERC20 is Context, IERC20, Ownable {
     /**
      * @dev See {IERC20-totalSupply}.
      */
-    function totalSupply() public  view returns (uint256) {
+    function totalSupply() public override view returns (uint256) {
         return _totalSupply;
     }
 
     /**
      * @dev See {IERC20-balanceOf}.
      */
-    function balanceOf(address account) public  view returns (uint256) {
+    function balanceOf(address account) public override view returns (uint256) {
         return _balances[account];
     }
 
@@ -86,8 +86,7 @@ contract ERC20 is Context, IERC20, Ownable {
      */
     function transfer(address recipient, uint256 amount)
         public
-        
-        
+        override
         returns (bool)
     {
         _transfer(_msgSender(), recipient, amount);
@@ -99,8 +98,7 @@ contract ERC20 is Context, IERC20, Ownable {
      */
     function allowance(address owner, address spender)
         public
-        
-        
+        override
         view
         returns (uint256)
     {
@@ -116,8 +114,7 @@ contract ERC20 is Context, IERC20, Ownable {
      */
     function approve(address spender, uint256 amount)
         public
-        
-        
+        override
         returns (bool)
     {
         _approve(_msgSender(), spender, amount);
@@ -140,7 +137,7 @@ contract ERC20 is Context, IERC20, Ownable {
         address sender,
         address recipient,
         uint256 amount
-    ) public   returns (bool) {
+    ) public override returns (bool) {
         _transfer(sender, recipient, amount);
         _approve(
             sender,
@@ -346,7 +343,7 @@ contract ERC20 is Context, IERC20, Ownable {
  * @title ERC223 standard token implementation.
  */
 // contract ERC223BasicToken is ERC223Basic, BasicToken {
- contract ERC223BasicToken is ERC20 {
+ abstract contract ERC223BasicToken is ERC20 {
     event Transfer(
         address indexed _from,
         address indexed _to,
