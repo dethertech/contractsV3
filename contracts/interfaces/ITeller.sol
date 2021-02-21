@@ -1,30 +1,32 @@
 pragma solidity ^0.7.6;
 
-contract ITeller {
-    function funds() external view returns (uint256);
+abstract contract ITeller {
+    function funds() external virtual view returns (uint256);
 
-    function geo() external view returns (address);
+    function geo() external virtual view returns (address);
 
-    function withdrawableEth(address) external view returns (uint256);
+    function withdrawableEth(address) external virtual view returns (uint256);
 
     function canPlaceCertifiedComment(address, address)
-        external
+        external 
+        virtual
         view
         returns (uint256);
 
-    function zone() external view returns (address);
+    function zone() external virtual view returns (address);
 
-    function init(address _geo, address _zone) external;
+    function init(address _geo, address _zone) external virtual;
 
-    function getComments() external view returns (bytes32[] memory);
+    function getComments() external virtual view returns (bytes32[] memory);
 
     function calcReferrerFee(uint256 _value)
-        external
+        external virtual
         view
         returns (uint256 referrerAmount);
 
     function getTeller()
-        external
+        external 
+        virtual
         view
         returns (
             address,
@@ -38,13 +40,13 @@ contract ITeller {
             address
         );
 
-    function getReferrer() external view returns (address, uint256);
+    function getReferrer() external virtual view returns (address, uint256);
 
-    function hasTeller() external view returns (bool);
+    function hasTeller() external virtual view returns (bool);
 
-    function removeTellerByZone() external;
+    function removeTellerByZone() external virtual;
 
-    function removeTeller() external;
+    function removeTeller() external virtual;
 
     function addTeller(
         bytes calldata _position,
@@ -55,7 +57,7 @@ contract ITeller {
         bytes1 _settings,
         address _referrer,
         bytes32 _description
-    ) external;
+    ) external virtual;
 
-    function addComment(bytes32 _commentHash) external;
+    function addComment(bytes32 _commentHash) external virtual;
 }

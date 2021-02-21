@@ -1,9 +1,9 @@
 pragma solidity ^0.7.6;
 
-contract IExchangeRateOracle {
-    function WAD() external view returns (uint256);
+abstract contract IExchangeRateOracle {
+    function WAD() external virtual view returns (uint256);
 
-    function mkrPriceFeed() external view returns (address);
+    function mkrPriceFeed() external virtual view returns (address);
 
-    function getWeiPriceOneUsd() external view returns (uint256);
+    function getWeiPriceOneUsd() external virtual view returns (uint256);
 }

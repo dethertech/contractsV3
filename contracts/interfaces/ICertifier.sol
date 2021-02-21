@@ -1,24 +1,25 @@
 pragma solidity ^0.7.6;
 
-contract ICertifier {
-    function certs(address) external view returns (bool active);
+abstract contract ICertifier {
+    function certs(address) external virtual view returns (bool active);
 
-    function delegate(address) external view returns (bool active);
+    function delegate(address) external virtual view returns (bool active);
 
-    function addDelegate(address _delegate) external;
+    function addDelegate(address _delegate) external virtual;
 
-    function removeDelegate(address _delegate) external;
+    function removeDelegate(address _delegate) external virtual;
 
-    function certify(address _who) external;
+    function certify(address _who) external virtual;
 
-    function revoke(address _who) external;
+    function revoke(address _who) external virtual;
 
-    function isDelegate(address _who) external view returns (bool);
+    function isDelegate(address _who) external virtual view returns (bool);
 
-    function certified(address _who) external view returns (bool);
+    function certified(address _who) external virtual view returns (bool);
 
     function get(address _who, string calldata _field)
         external
+        virtual
         view
         returns (bytes32);
 }
