@@ -34,7 +34,7 @@ contract Users {
     //
     // ------------------------------------------------
 
-    constructor(address _geo, address _certifierRegistry) public {
+    constructor(address _geo, address _certifierRegistry) {
         geo = IGeoRegistry(_geo);
         certifierRegistry = ICertifierRegistry(_certifierRegistry);
     }

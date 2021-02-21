@@ -17,7 +17,7 @@ contract TaxCollector is IERC223ReceivingContract, Ownable {
         address indexed from
     );
 
-    constructor(address _dth, address _taxRecipient) public {
+    constructor(address _dth, address _taxRecipient) {
         dth = IDetherToken(_dth);
         taxRecipient = _taxRecipient;
     }

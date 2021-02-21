@@ -36,9 +36,9 @@ contract ERC20 is Context, IERC20, Ownable {
         _;
     }
 
-    constructor(string memory name, string memory symbol) public {
-        _name = name;
-        _symbol = symbol;
+    constructor(string memory n, string memory sym) {
+        _name = n;
+        _symbol = sym;
         _decimals = 18;
     }
 
@@ -391,5 +391,5 @@ contract DetherToken is ERC20, ERC223BasicToken {
     /**
      *@dev Constructor that set Detailed of the ERC20 token.
      */
-    constructor() public ERC20(NAME, SYMBOL) {}
+    constructor() ERC20(NAME, SYMBOL) {}
 }

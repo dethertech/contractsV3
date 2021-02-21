@@ -164,7 +164,7 @@ contract Shops {
         address _geo,
         address _users,
         address _zoneFactory
-    ) public {
+    ) {
         require(_dth != address(0), "dth address cannot be 0x0");
         require(_geo != address(0), "geo address cannot be 0x0");
         require(_users != address(0), "users address cannot be 0x0");
