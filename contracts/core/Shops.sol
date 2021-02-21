@@ -565,9 +565,8 @@ contract Shops {
             positionToShopAddress[position] = sender;
 
             // a zone is a 6 character geohash, we keep track of all shops in a given zone
-            shop._index =
-                zoneToShopAddresses[bytes6(position)].push(sender) -
-                1;
+            zoneToShopAddresses[bytes6(position)].push(sender);
+            shop._index = zoneToShopAddresses[bytes6(position)].length - 1;
         }
     }
 
