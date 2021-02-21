@@ -1,4 +1,4 @@
-pragma solidity ^0.5.17;
+pragma solidity ^0.7.6;
 
 contract IZoneFactory {
     function dth() external view returns (address);

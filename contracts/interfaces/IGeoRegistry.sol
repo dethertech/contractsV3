@@ -1,4 +1,4 @@
-pragma solidity ^0.5.17;
+pragma solidity ^0.7.6;
 
 contract IGeoRegistry {
     function zoneIsEnabled(bytes2) external view returns (bool);

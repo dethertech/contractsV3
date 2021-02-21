@@ -1,15 +1,15 @@
-pragma solidity >=0.4.21 <=0.7.4;
+pragma solidity >=0.4.21 <=0.7.6;
 
 import "../interfaces/IERC223ReceivingContract.sol";
 // import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
-import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import "openzeppelin-solidity/contracts/access/Ownable.sol";
 
 import "openzeppelin-solidity/contracts/utils/Address.sol";
 import "openzeppelin-solidity/contracts/GSN/Context.sol";
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
-// ------- zeppelin-solidity/contracts/ownership/Ownable.sol [npm] zeppelin-solidity@1.6.0
+// ------- zeppelin-solidity/contracts/access/Ownable.sol [npm] zeppelin-solidity@1.6.0
 
 // ------- zeppelin-solidity/contracts/token/ERC20/MintableToken.sol [npm] zeppelin-solidity@1.6.0
 

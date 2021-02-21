@@ -1,4 +1,4 @@
-pragma solidity ^0.5.17;
+pragma solidity ^0.7.6;
 
 contract ISettings {
      function getParams (bytes2 zoneCountry) public view returns(
