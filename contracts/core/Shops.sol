@@ -464,7 +464,7 @@ contract Shops {
         for (uint256 i = _start; i < _end; i += 1) {
             uint256 taxAmount = calcShopTax(
                 shopAddressToShop[shopsinZone[i]].lastTaxTime,
-                now,
+                block.timestamp,
                 shopAddressToShop[shopsinZone[i]].licencePrice
             );
             if (taxAmount > shopAddressToShop[shopsinZone[i]].staked) {
@@ -481,7 +481,7 @@ contract Shops {
 
                 taxToSendToZoneOwner = taxToSendToZoneOwner.add(taxAmount);
 
-                shopAddressToShop[shopsinZone[i]].lastTaxTime = now;
+                shopAddressToShop[shopsinZone[i]].lastTaxTime = block.timestamp;
             }
         }
         require(dth.transfer(zoneOwner, taxToSendToZoneOwner));
@@ -558,7 +558,7 @@ contract Shops {
             // shop.disputeID = 0; // dispute could have id 0..
             shop.geohashZoneBase = bytes6(position);
             shop.licencePrice = zoneValue;
-            shop.lastTaxTime = now;
+            shop.lastTaxTime = block.timestamp;
             stakedDth = stakedDth.add(dthAmount);
 
             // so we can get a shop based on its position

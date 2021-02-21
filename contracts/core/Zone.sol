@@ -144,10 +144,10 @@ contract Zone is IERC223ReceivingContract {
         taxCollector = _taxCollector;
 
         zoneOwner.addr = _zoneOwner;
-        zoneOwner.startTime = now;
+        zoneOwner.startTime = block.timestamp;
         zoneOwner.staked = _dthAmount;
         zoneOwner.balance = _dthAmount;
-        zoneOwner.lastTaxTime = now;
+        zoneOwner.lastTaxTime = block.timestamp;
         zoneOwner.auctionId = 0; // was not gained by winning an auction
 
         inited = true;
@@ -334,13 +334,13 @@ contract Zone is IERC223ReceivingContract {
     function _handleTaxPayment() private {
         // processState ensured that: no running auction + there is a zone owner
 
-        if (zoneOwner.lastTaxTime >= now) {
+        if (zoneOwner.lastTaxTime >= block.timestamp) {
             return; // short-circuit: multiple txes in 1 block OR many blocks but in same Auction
         }
 
         (uint256 taxAmount, uint256 keepAmount) = calcHarbergerTax(
             zoneOwner.lastTaxTime,
-            now,
+            block.timestamp,
             zoneOwner.staked
         );
 
@@ -353,7 +353,7 @@ contract Zone is IERC223ReceivingContract {
         } else {
             // zone owner can pay due taxes
             zoneOwner.balance = zoneOwner.balance.sub(taxAmount);
-            zoneOwner.lastTaxTime = now;
+            zoneOwner.lastTaxTime = block.timestamp;
             (address referrer, uint256 refFee) = teller.getReferrer();
             if (referrer != address(0x00) && refFee > 0) {
                 uint256 referralFee = taxAmount.mul(refFee).div(1000);
@@ -413,11 +413,11 @@ contract Zone is IERC223ReceivingContract {
         // (new) zone owner needs to pay taxes from the moment he acquires zone ownership until now
         (uint256 taxAmount, uint256 keepAmount) = calcHarbergerTax(
             auctionEndTime,
-            now,
+            block.timestamp,
             zoneOwner.staked
         );
         zoneOwner.balance = zoneOwner.balance.sub(taxAmount);
-        zoneOwner.lastTaxTime = now;
+        zoneOwner.lastTaxTime = block.timestamp;
         zoneFactory.removeActiveBidder(highestBidder);
         zoneFactory.removeCurrentZoneBidders();
         zoneFactory.emitAuctionEnded(
@@ -444,7 +444,7 @@ contract Zone is IERC223ReceivingContract {
             // while uaction is running, no taxes need to be paid
 
             // handling of taxes around change of zone ownership are handled inside _endAuction
-            if (now >= auctionIdToAuction[currentAuctionId].endTime)
+            if (block.timestamp >= auctionIdToAuction[currentAuctionId].endTime)
                 _endAuction();
         } else {
             // no running auction, currentAuctionId could be zero
@@ -547,8 +547,8 @@ contract Zone is IERC223ReceivingContract {
 
         auctionIdToAuction[newAuctionId] = Auction({
             state: AuctionState.Started,
-            startTime: now,
-            endTime: now.add(BID_PERIOD),
+            startTime: block.timestamp,
+            endTime: block.timestamp.add(BID_PERIOD),
             highestBidder: _sender // caller (challenger)
         });
 
@@ -581,13 +581,13 @@ contract Zone is IERC223ReceivingContract {
             if (zoneOwner.auctionId == 0) {
                 // current zone owner did not become owner by winning an auction, but by creating this zone or caliming it when it was free
                 require(
-                    now > zoneOwner.startTime.add(COOLDOWN_PERIOD),
+                    block.timestamp > zoneOwner.startTime.add(COOLDOWN_PERIOD),
                     "cooldown period did not end yet"
                 );
             } else {
                 // current zone owner became owner by winning an auction (which has ended)
                 require(
-                    now >
+                    block.timestamp >
                         auctionIdToAuction[currentAuctionId].endTime.add(
                             COOLDOWN_PERIOD
                         ),
@@ -619,10 +619,10 @@ contract Zone is IERC223ReceivingContract {
         // NOTE: empty zone claim will not have entry fee deducted, its not bidding it's taking immediately
         zoneFactory.changeOwner(_sender, zoneOwner.addr, address(this));
         zoneOwner.addr = _sender;
-        zoneOwner.startTime = now;
+        zoneOwner.startTime = block.timestamp;
         zoneOwner.staked = _dthAmount;
         zoneOwner.balance = _dthAmount;
-        zoneOwner.lastTaxTime = now;
+        zoneOwner.lastTaxTime = block.timestamp;
         zoneOwner.auctionId = 0; // since it was not gained wby winning an auction
         zoneFactory.emitClaimFreeZone(geohash, _sender, _dthAmount);
     }
