@@ -1,15 +1,15 @@
-pragma solidity ^0.5.17;
+pragma solidity ^0.7.6;
 
-contract ITaxCollector {
-    function unchangeableRecipient() external;
+abstract contract ITaxCollector {
+    function unchangeableRecipient() external virtual;
 
-    function changeRecipient() external;
+    function changeRecipient() external virtual;
 
-    function collect() external;
+    function collect() external virtual;
 
     function tokenFallback(
         address _from,
         uint256 _value,
         bytes calldata _data
-    ) external;
+    ) external virtual;
 }

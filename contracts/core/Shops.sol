@@ -1,4 +1,4 @@
-pragma solidity ^0.5.17;
+pragma solidity ^0.7.6;
 pragma experimental ABIEncoderV2;
 
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
@@ -164,7 +164,7 @@ contract Shops {
         address _geo,
         address _users,
         address _zoneFactory
-    ) public {
+    ) {
         require(_dth != address(0), "dth address cannot be 0x0");
         require(_geo != address(0), "geo address cannot be 0x0");
         require(_users != address(0), "users address cannot be 0x0");
@@ -464,7 +464,7 @@ contract Shops {
         for (uint256 i = _start; i < _end; i += 1) {
             uint256 taxAmount = calcShopTax(
                 shopAddressToShop[shopsinZone[i]].lastTaxTime,
-                now,
+                block.timestamp,
                 shopAddressToShop[shopsinZone[i]].licencePrice
             );
             if (taxAmount > shopAddressToShop[shopsinZone[i]].staked) {
@@ -481,7 +481,7 @@ contract Shops {
 
                 taxToSendToZoneOwner = taxToSendToZoneOwner.add(taxAmount);
 
-                shopAddressToShop[shopsinZone[i]].lastTaxTime = now;
+                shopAddressToShop[shopsinZone[i]].lastTaxTime = block.timestamp;
             }
         }
         require(dth.transfer(zoneOwner, taxToSendToZoneOwner));
@@ -558,16 +558,15 @@ contract Shops {
             // shop.disputeID = 0; // dispute could have id 0..
             shop.geohashZoneBase = bytes6(position);
             shop.licencePrice = zoneValue;
-            shop.lastTaxTime = now;
+            shop.lastTaxTime = block.timestamp;
             stakedDth = stakedDth.add(dthAmount);
 
             // so we can get a shop based on its position
             positionToShopAddress[position] = sender;
 
             // a zone is a 6 character geohash, we keep track of all shops in a given zone
-            shop._index =
-                zoneToShopAddresses[bytes6(position)].push(sender) -
-                1;
+            zoneToShopAddresses[bytes6(position)].push(sender);
+            shop._index = zoneToShopAddresses[bytes6(position)].length - 1;
         }
     }
 

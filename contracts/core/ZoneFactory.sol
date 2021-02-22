@@ -1,4 +1,4 @@
-pragma solidity ^0.5.17;
+pragma solidity ^0.7.6;
 
 import "../eip1167/EIP1167CloneFactory.sol";
 
@@ -99,7 +99,7 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
         address _tellerImplementation,
         address _taxCollector,
         address _protocolSettings
-    ) public {
+    ) {
         require(_dth != address(0), "dth address cannot be 0x0");
         require(_geo != address(0), "geo address cannot be 0x0");
         require(_users != address(0), "users address cannot be 0x0");
@@ -321,7 +321,7 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
         address _from,
         uint256 _value,
         bytes memory _data // GAS COST +/- 3.763.729
-    ) public  {
+    ) public override {
         require(
             msg.sender == address(dth),
             "can only be called by dth contract"

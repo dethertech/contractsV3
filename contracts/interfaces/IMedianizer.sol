@@ -1,5 +1,5 @@
-pragma solidity ^0.5.17;
+pragma solidity ^0.7.6;
 
-contract IMedianizer {
-    function peek()  external  view returns (bytes32, bool);
+abstract contract IMedianizer {
+    function peek()  external virtual view returns (bytes32, bool);
 }

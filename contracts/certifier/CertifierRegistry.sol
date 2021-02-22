@@ -1,4 +1,4 @@
-pragma solidity ^0.5.17;
+pragma solidity ^0.7.6;
 pragma experimental ABIEncoderV2;
 
 // TO DO
@@ -95,7 +95,7 @@ contract CertifierRegistry {
 		public
 		only_delegate(_certifierId, msg.sender)
 	{
-		certs[_who].push(Certification({certifier: _certifierId, ref: _type, timestamp: now}));
+		certs[_who].push(Certification({certifier: _certifierId, ref: _type, timestamp: block.timestamp}));
 		emit Certified(_certifierId, _who, _type);
 	}
 

@@ -1,27 +1,27 @@
-pragma solidity ^0.5.17;
+pragma solidity ^0.7.6;
 
-contract IZone {
-    function dth() public view returns (address);
+abstract contract IZone {
+    function dth() public virtual view returns (address);
 
-    function geohash() public view returns (bytes6);
+    function geohash() public virtual view returns (bytes6);
 
-    function currentAuctionId() public view returns (uint256);
+    function currentAuctionId() public virtual view returns (uint256);
 
-    function auctionBids(uint256, address) public view returns (uint256);
+    function auctionBids(uint256, address) public virtual view returns (uint256);
 
-    function withdrawableDth(address) public view returns (uint256);
+    function withdrawableDth(address) public virtual view returns (uint256);
 
-    function teller() public view returns (address);
+    function teller() public virtual view returns (address);
 
-    function zoneFactory() public view returns (address);
+    function zoneFactory() public virtual view returns (address);
 
-    function MIN_STAKE() public view returns (uint256);
+    function MIN_STAKE() public virtual view returns (uint256);
 
-    function country() public view returns (bytes2);
+    function country() public virtual view returns (bytes2);
 
-    function geo() public view returns (address);
+    function geo() public virtual view returns (address);
 
-    function withdrawableEth(address) public view returns (uint256);
+    function withdrawableEth(address) public virtual view returns (uint256);
 
     function init(
         bytes2 _countryCode,
@@ -33,14 +33,15 @@ contract IZone {
         address _taxCollector,
         address _teller,
         address _settings
-    ) external;
+    ) external virtual;
 
-    function connectToTellerContract(address _teller) external;
+    function connectToTellerContract(address _teller) external virtual;
 
-    function ownerAddr() external view returns (address);
+    function ownerAddr() external virtual view returns (address);
 
     function computeCSC(bytes6 _geohash, address _addr)
-        external
+        external 
+        virtual
         pure
         returns (bytes12);
 
@@ -48,17 +49,19 @@ contract IZone {
         uint256 _startTime,
         uint256 _endTime,
         uint256 _dthAmount
-    ) public view returns (uint256 taxAmount, uint256 keepAmount);
+    ) public virtual view returns (uint256 taxAmount, uint256 keepAmount);
 
     function calcEntryFee(uint256 _value)
-        external
+        external 
+        virtual
         view
         returns (uint256 burnAmount, uint256 bidAmount);
 
-    function auctionExists(uint256 _auctionId) external view returns (bool);
+    function auctionExists(uint256 _auctionId) external virtual view returns (bool);
 
     function getZoneOwner()
-        external
+        external 
+        virtual
         view
         returns (
             address,
@@ -70,7 +73,8 @@ contract IZone {
         );
 
     function getAuction(uint256 _auctionId)
-        external
+        external 
+        virtual
         view
         returns (
             uint256,
@@ -82,7 +86,8 @@ contract IZone {
         );
 
     function getLastAuction()
-        external
+        external 
+        virtual
         view
         returns (
             uint256,
@@ -93,21 +98,21 @@ contract IZone {
             uint256
         );
 
-    function processState() external;
+    function processState() external virtual;
 
     function tokenFallback(
         address _from,
         uint256 _value,
         bytes memory _data
-    ) public;
+    ) public virtual;
 
-    function release() external;
+    function release() external virtual;
 
-    function withdrawFromAuction(uint256 _auctionId) external;
+    function withdrawFromAuction(uint256 _auctionId) external virtual;
 
-    function withdrawFromAuctions(uint256[] calldata _auctionIds) external;
+    function withdrawFromAuctions(uint256[] calldata _auctionIds) external virtual;
 
-    function withdrawDth() external;
+    function withdrawDth() external virtual;
 
-    function proxyUpdateUserDailySold(address _to, uint256 _amount) external;
+    function proxyUpdateUserDailySold(address _to, uint256 _amount) external virtual;
 }
