@@ -35,18 +35,19 @@ contract Shops {
     // ------------------------------------------------
 
     struct Shop {
-        bytes12 position; // 12 char geohash for location of teller
-        bytes16 category;
-        bytes16 name;
-        bytes32 description;
-        bytes16 opening;
-        bytes6 geohashZoneBase;
         uint256 staked;
         uint256 licencePrice;
         uint256 lastTaxTime;
+        bytes32 description;
+        uint256 _index;
+        bytes16 category;
+        bytes16 name;
+        bytes12 position; // 12 char geohash for location of teller
+        bytes16 opening;
+        bytes6 geohashZoneBase;
+        
         // bool hasDispute;
         // uint256 disputeID;
-        uint256 _index;
     }
 
     // ------------------------------------------------
