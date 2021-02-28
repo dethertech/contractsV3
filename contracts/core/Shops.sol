@@ -1,7 +1,4 @@
-pragma solidity ^0.7.6;
-pragma experimental ABIEncoderV2;
-
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+pragma solidity ^0.8.1;
 
 import "../interfaces/IDetherToken.sol";
 import "../interfaces/IUsers.sol";
@@ -10,13 +7,6 @@ import "../interfaces/IZoneFactory.sol";
 import "../interfaces/IZone.sol";
 
 contract Shops {
-    // ------------------------------------------------
-    //
-    // Libraries
-    //
-    // ------------------------------------------------
-
-    using SafeMath for uint256;
 
     // ------------------------------------------------
     //
@@ -347,9 +337,7 @@ contract Shops {
         uint256 _endTime,
         uint256 _licencePrice
     ) public view returns (uint256 taxAmount) {
-        taxAmount = _licencePrice.mul(_endTime.sub(_startTime)).div(TAX).div(
-            1 days
-        );
+        taxAmount = _licencePrice * (_endTime - _startTime) / TAX / 1 days;
     }
 
     function collectTax(
@@ -380,23 +368,19 @@ contract Shops {
             );
             if (taxAmount > shopAddressToShop[shopsinZone[i]].staked) {
                 // shop pay what he can and is deleted
-                taxToSendToZoneOwner = taxToSendToZoneOwner.add(
-                    shopAddressToShop[shopsinZone[i]].staked
-                );
+                taxToSendToZoneOwner = taxToSendToZoneOwner + shopAddressToShop[shopsinZone[i]].staked;
                 _deleteShop(shopsinZone[i]);
             } else {
                 shopAddressToShop[shopsinZone[i]]
-                    .staked = shopAddressToShop[shopsinZone[i]].staked.sub(
-                    taxAmount
-                );
+                    .staked = shopAddressToShop[shopsinZone[i]].staked - taxAmount;
 
-                taxToSendToZoneOwner = taxToSendToZoneOwner.add(taxAmount);
+                taxToSendToZoneOwner = taxToSendToZoneOwner + taxAmount;
 
                 shopAddressToShop[shopsinZone[i]].lastTaxTime = block.timestamp;
             }
         }
         require(dth.transfer(zoneOwner, taxToSendToZoneOwner));
-        stakedDth = stakedDth.sub(taxToSendToZoneOwner);
+        stakedDth = stakedDth - taxToSendToZoneOwner;
         emit TaxTotalPaidTo(taxToSendToZoneOwner, zoneOwner);
     }
 
@@ -472,7 +456,7 @@ contract Shops {
             shop.geohashZoneBase = bytes6(position);
             shop.licencePrice = zoneValue;
             shop.lastTaxTime = block.timestamp;
-            stakedDth = stakedDth.add(dthAmount);
+            stakedDth = stakedDth + dthAmount;
 
             // so we can get a shop based on its position
             positionToShopAddress[position] = sender;
@@ -491,10 +475,8 @@ contract Shops {
             shopAddressToShop[_sender].lastTaxTime > 0,
             "Shop does not exist"
         ); // TODO change the value of the check
-        shopAddressToShop[_sender].staked = shopAddressToShop[_sender]
-            .staked
-            .add(_dthAmount);
-        stakedDth = stakedDth.add(_dthAmount);
+        shopAddressToShop[_sender].staked = shopAddressToShop[_sender].staked + _dthAmount;
+        stakedDth = stakedDth + _dthAmount;
     }
 
     // function _deleteShop(address shopAddress)
@@ -544,7 +526,7 @@ contract Shops {
         _deleteShop(msg.sender);
 
         require(dth.transfer(msg.sender, shopStake));
-        stakedDth = stakedDth.sub(shopStake);
+        stakedDth = stakedDth - shopStake;
     }
 
     modifier onlyZoneOwner(bytes6 _zoneGeohash) {
@@ -583,7 +565,7 @@ contract Shops {
         address(dth).call(payload);
 
         // require(dth.transfer(_shopAddress, shopStake));
-        stakedDth = stakedDth.sub(shopStake);
+        stakedDth = stakedDth - shopStake;
     }
 
     function withdrawDth() external {
@@ -592,7 +574,7 @@ contract Shops {
 
         withdrawableDth[msg.sender] = 0;
         require(dth.transfer(msg.sender, dthWithdraw));
-        stakedDth = stakedDth.sub(dthWithdraw);
+        stakedDth = stakedDth - dthWithdraw;
     }
 
     //
