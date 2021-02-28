@@ -317,97 +317,7 @@ contract Shops {
     //   assembly { size := extcodesize(addr) }
     //   return size > 0;
     // }
-
-    function toBytes1(bytes memory _bytes, uint256 _start)
-        private
-        pure
-        returns (bytes1)
-    {
-        require(_bytes.length >= (_start + 1), " not long enough");
-        bytes1 tempBytes1;
-
-        assembly {
-            tempBytes1 := mload(add(add(_bytes, 0x20), _start))
-        }
-
-        return tempBytes1;
-    }
-
-    function toBytes2(bytes memory _bytes, uint256 _start)
-        private
-        pure
-        returns (bytes2)
-    {
-        require(_bytes.length >= (_start + 2), " not long enough");
-        bytes2 tempBytes2;
-
-        assembly {
-            tempBytes2 := mload(add(add(_bytes, 0x20), _start))
-        }
-
-        return tempBytes2;
-    }
-
-    function toBytes6(bytes memory _bytes, uint256 _start)
-        private
-        pure
-        returns (bytes6)
-    {
-        require(_bytes.length >= (_start + 6), " not long enough");
-        bytes6 tempBytes6;
-
-        assembly {
-            tempBytes6 := mload(add(add(_bytes, 0x20), _start))
-        }
-
-        return tempBytes6;
-    }
-
-    function toBytes12(bytes memory _bytes, uint256 _start)
-        private
-        pure
-        returns (bytes12)
-    {
-        require(_bytes.length >= (_start + 12), " not long enough");
-        bytes12 tempBytes12;
-
-        assembly {
-            tempBytes12 := mload(add(add(_bytes, 0x20), _start))
-        }
-
-        return tempBytes12;
-    }
-
-    function toBytes16(bytes memory _bytes, uint256 _start)
-        private
-        pure
-        returns (bytes16)
-    {
-        require(_bytes.length >= (_start + 16), " not long enough");
-        bytes16 tempBytes16;
-
-        assembly {
-            tempBytes16 := mload(add(add(_bytes, 0x20), _start))
-        }
-
-        return tempBytes16;
-    }
-
-    function toBytes32(bytes memory _bytes, uint256 _start)
-        private
-        pure
-        returns (bytes32)
-    {
-        require(_bytes.length >= (_start + 32), " not long enough");
-        bytes32 tempBytes32;
-
-        assembly {
-            tempBytes32 := mload(add(add(_bytes, 0x20), _start))
-        }
-
-        return tempBytes32;
-    }
-
+    
     // ------------------------------------------------
     //
     // Functions Setters Public
@@ -493,15 +403,15 @@ contract Shops {
     function tokenFallback(
         address _from,
         uint256 _value,
-        bytes memory _data
-    ) public onlyWhenCallerIsDTH {
+        bytes calldata _data
+    ) external onlyWhenCallerIsDTH {
         require(_data.length == 95, "addShop expects 95 bytes as data");
         // // audit feedback
         // require(!isContract(_from), 'shops cannot be a contract');
         address sender = _from;
         uint256 dthAmount = _value;
 
-        bytes1 fn = toBytes1(_data, 0);
+        bytes1 fn = abi.decode(_data[:1], (bytes1));
         require(
             fn == bytes1(0x30) || fn == bytes1(0x31),
             "first byte didnt match func shop"
@@ -512,12 +422,14 @@ contract Shops {
             _topUp(sender, _value);
         } else if (fn == bytes1(0x30)) {
             // shop creation
-            bytes2 country = toBytes2(_data, 1);
-            bytes12 position = toBytes12(_data, 3);
-            bytes16 category = toBytes16(_data, 15);
-            bytes16 name = toBytes16(_data, 31);
-            bytes32 description = toBytes32(_data, 47);
-            bytes16 opening = toBytes16(_data, 79);
+            (
+                bytes2 country, 
+                bytes12 position, 
+                bytes16 category, 
+                bytes16 name, 
+                bytes32 description, 
+                bytes16 opening
+            ) = abi.decode(_data[1:95], (bytes2, bytes12, bytes16, bytes16, bytes32, bytes16));
 
             require(geo.zoneIsEnabled(country), "country is disabled");
             require(
