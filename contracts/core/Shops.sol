@@ -547,22 +547,25 @@ contract Shops {
         stakedDth = stakedDth.sub(shopStake);
     }
 
+    modifier onlyZoneOwner(bytes6 _zoneGeohash) {
+        address zoneOwner = IZone(zoneFactory.geohashToZone(_zoneGeohash)).ownerAddr();
+        require(
+            msg.sender == zoneOwner,
+            "msg.sender is not the owner of the zone"
+        );
+        _;
+    }
+
     function removeShopFromZoneOwner(address _shopAddress, bytes6 _zoneGeohash)
+        onlyZoneOwner(_zoneGeohash)
         external
     {
         // require(
         //     disputeEnabled == false,
         //     "Once activated, only dispute contract can remove shop"
         // );
-        address zoneAddress = zoneFactory.geohashToZone(_zoneGeohash);
-        IZone zoneInstance = IZone(zoneAddress);
-        address zoneOwner = zoneInstance.ownerAddr();
-        require(
-            msg.sender == zoneOwner,
-            "msg.sender is not the owner of the zone"
-        );
         bytes12 shopPos = shopAddressToShop[_shopAddress].position;
-        bytes6 zoneGeohash = zoneInstance.geohash();
+        bytes6 zoneGeohash = IZone(zoneFactory.geohashToZone(_zoneGeohash)).geohash();
         require(
             bytes6(shopPos) == zoneGeohash,
             "position is not inside this zone"
