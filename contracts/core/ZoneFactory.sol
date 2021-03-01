@@ -1,4 +1,4 @@
-pragma solidity ^0.7.6;
+pragma solidity ^0.8.1;
 
 import "../eip1167/EIP1167CloneFactory.sol";
 

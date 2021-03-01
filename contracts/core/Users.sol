@@ -1,20 +1,11 @@
-pragma solidity ^0.7.6;
+pragma solidity ^0.8.1;
 pragma experimental ABIEncoderV2;
-
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
 import "../interfaces/ICertifier.sol";
 import "../interfaces/IGeoRegistry.sol";
 import "../interfaces/ICertifierRegistry.sol";
 
 contract Users {
-    // ------------------------------------------------
-    //
-    // Library init
-    //
-    // ------------------------------------------------
-
-    using SafeMath for uint256;
 
     // ------------------------------------------------
     //
