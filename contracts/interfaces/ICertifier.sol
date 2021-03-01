@@ -1,4 +1,4 @@
-pragma solidity ^0.7.6;
+pragma solidity ^0.8.1;
 
 abstract contract ICertifier {
     function certs(address) external virtual view returns (bool active);

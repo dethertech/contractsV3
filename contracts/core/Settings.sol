@@ -1,6 +1,5 @@
-pragma solidity ^0.7.6;
+pragma solidity ^0.8.1;
 
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/access/Ownable.sol";
 
 // This contracts will be change to an aragon DAO
