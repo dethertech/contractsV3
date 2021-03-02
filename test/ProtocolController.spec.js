@@ -9,8 +9,8 @@ const GeoRegistry = artifacts.require("GeoRegistry");
 const ZoneFactory = artifacts.require("ZoneFactory");
 const Zone = artifacts.require("Zone");
 const Teller = artifacts.require("Teller");
-const TaxCollector = artifacts.require("TaxCollector");
-const Settings = artifacts.require("Settings");
+// const TaxCollector = artifacts.require("TaxCollector");
+const ProtocolController = artifacts.require("ProtocolController");
 
 const Web3 = require("web3");
 
@@ -193,8 +193,8 @@ contract("Zone + Settings", (accounts) => {
   let zoneImplementationInstance;
   let tellerImplementationInstance;
   let certifierRegistryInstance;
-  let taxCollectorInstance;
-  let settingsInstance;
+  // let taxCollectorInstance;
+  let protocolControllerInstance;
 
   before(async () => {
     __rootState__ = await timeTravel.saveState();
@@ -204,15 +204,15 @@ contract("Zone + Settings", (accounts) => {
   beforeEach(async () => {
     await timeTravel.revertState(__rootState__); // to go back to real time
     dthInstance = await DetherToken.new({ from: owner });
-    taxCollectorInstance = await TaxCollector.new(
-      dthInstance.address,
-      ADDRESS_BURN,
-      { from: owner }
-    );
+    // taxCollectorInstance = await TaxCollector.new(
+    //   dthInstance.address,
+    //   ADDRESS_BURN,
+    //   { from: owner }
+    // );
     certifierRegistryInstance = await CertifierRegistry.new({ from: owner });
     geoInstance = await GeoRegistry.new({ from: owner });
 
-    settingsInstance = await Settings.new({ from: owner });
+    protocolControllerInstance = await ProtocolController.new(dthInstance.address, { from: owner });
     zoneImplementationInstance = await Zone.new({
       from: owner,
     });
@@ -228,8 +228,8 @@ contract("Zone + Settings", (accounts) => {
       usersInstance.address,
       zoneImplementationInstance.address,
       tellerImplementationInstance.address,
-      taxCollectorInstance.address,
-      settingsInstance.address,
+      // taxCollectorInstance.address,
+      protocolControllerInstance.address,
       { from: owner }
     );
   });
@@ -313,40 +313,9 @@ contract("Zone + Settings", (accounts) => {
     let withdrawTxTimestamp;
     beforeEach(async () => {
       await enableAndLoadCountry(COUNTRY_CG);
-      // ({ zoneInstance, tellerInstance } = await createZone(
-      //   user1,
-      //   MIN_ZONE_DTH_STAKE,
-      //   COUNTRY_CG,
-      //   VALID_CG_ZONE_GEOHASH
-      // ));
-      // console.log("YOLO");
-      // await timeTravel.inSecs(COOLDOWN_PERIOD + ONE_HOUR);
-      // let zoneOwnerAfter = zoneOwnerToObjPretty(
-      //   await zoneInstance.getZoneOwner()
-      // );
-      // await placeBid(user2, MIN_ZONE_DTH_STAKE + 15, zoneInstance.address); // loser, can withdraw
-      // await placeBid(user1, 30, zoneInstance.address);
-      // await placeBid(user4, MIN_ZONE_DTH_STAKE + 49, zoneInstance.address); // loser, can withdraw
-      // await placeBid(user3, MIN_ZONE_DTH_STAKE + 76, zoneInstance.address); // winner
-
-      // zoneOwnerAfter = zoneOwnerToObjPretty(await zoneInstance.getZoneOwner());
-      // auctionLive = auctionToObjPretty(await zoneInstance.getLastAuction());
-      // await timeTravel.inSecs(BID_PERIOD + ONE_HOUR);
-
-      // user2bidAmount = await zoneInstance.auctionBids("1", user2);
-      // auctionBefore = auctionToObj(await zoneInstance.getLastAuction());
-      // const tx = await zoneInstance.withdrawFromAuction("1", {
-      //   from: user2,
-      // });
-
-      // zoneOwnerAfter = zoneOwnerToObjPretty(await zoneInstance.getZoneOwner());
-      // auctionLive = auctionToObjPretty(await zoneInstance.getLastAuction());
-
-      // withdrawTxTimestamp = (await web3.eth.getBlock(tx.receipt.blockNumber))
-      //   .timestamp;
     });
     it("owner should be able to modify Params", async () => {
-      await settingsInstance.updateGlobalParams(
+      await protocolControllerInstance.updateGlobalParams(
         BID_PERIOD,
         COOLDOWN_PERIOD,
         2,
@@ -354,18 +323,18 @@ contract("Zone + Settings", (accounts) => {
         3,
         { from: owner }
       );
-      await settingsInstance.setCountryFloorPrice(
+      await protocolControllerInstance.setCountryFloorPrice(
         asciiToHex(COUNTRY_CG),
         ethToWei(MIN_ZONE_DTH_STAKE - 50)
       );
 
-      const zonePrice = await settingsInstance.getCountryFloorPrice(
+      const zonePrice = await protocolControllerInstance.getCountryFloorPrice(
         asciiToHex(COUNTRY_CG)
       );
       expect(zonePrice).to.be.bignumber.equal(
         ethToWei(MIN_ZONE_DTH_STAKE - 50)
       );
-      const settingZone = await settingsInstance.getGlobalParams();
+      const settingZone = await protocolControllerInstance.getGlobalParams();
       expect(settingZone.BID_PERIOD).to.be.bignumber.equal(
         BID_PERIOD.toString()
       );
@@ -375,34 +344,11 @@ contract("Zone + Settings", (accounts) => {
       expect(settingZone.ENTRY_FEE).to.be.bignumber.equal("2");
       expect(settingZone.ZONE_TAX).to.be.bignumber.equal("8");
       expect(settingZone.MIN_RAISE).to.be.bignumber.equal("3");
-      // change zone price and verify that it throw with invalid params
 
-      // try to create a zone with 20 DTH
-      // await expectRevert2(
-      //   createZone(
-      //     user5,
-      //     MIN_ZONE_DTH_STAKE - 80,
-      //     COUNTRY_CG,
-      //     VALID_CG_ZONE_GEOHASH2
-      //   ),
-      //   "DTH staked are not enough for this zone"
-      // );
-
-      // try to create a zone with 70 DTH
-      // try {
-      //   ({ zoneInstance, tellerInstance } = await createZone(
-      //     user5,
-      //     MIN_ZONE_DTH_STAKE - 30,
-      //     COUNTRY_CG,
-      //     VALID_CG_ZONE_GEOHASH2
-      //   ));
-      // } catch (err) {
-      //   console.log("====> err ===>", err);
-      // }
     });
 
-    it.only("owner should be able to modify Params", async () => {
-      await settingsInstance.updateGlobalParams(
+    it("owner should be able to modify Params and create zone", async () => {
+      await protocolControllerInstance.updateGlobalParams(
         BID_PERIOD,
         COOLDOWN_PERIOD,
         2,
@@ -410,7 +356,18 @@ contract("Zone + Settings", (accounts) => {
         3,
         { from: owner }
       );
-      await settingsInstance.setCountryFloorPrice(
+            // try to create a zone with 70 DTH
+      // try to create a zone with 20 DTH
+      await expectRevert2(
+        createZone(
+          user5,
+          MIN_ZONE_DTH_STAKE - 30,
+          COUNTRY_CG,
+          VALID_CG_ZONE_GEOHASH2
+        ),
+        "DTH staked are not enough for this zone"
+      );
+      await protocolControllerInstance.setCountryFloorPrice(
         asciiToHex(COUNTRY_CG),
         ethToWei(MIN_ZONE_DTH_STAKE - 50)
       );
@@ -426,31 +383,19 @@ contract("Zone + Settings", (accounts) => {
         console.log("====> err ===>", err);
       }
       // change zone price and verify that it throw with invalid params
-
-      // try to create a zone with 20 DTH
-      // await expectRevert2(
-      //   createZone(
-      //     user5,
-      //     MIN_ZONE_DTH_STAKE - 80,
-      //     COUNTRY_CG,
-      //     VALID_CG_ZONE_GEOHASH2
-      //   ),
-      //   "DTH staked are not enough for this zone"
-      // );
     });
 
-    it("owner should be able to modify params and register a zone", async () => {
-      await settingsInstance.setParams(
-        asciiToHex(COUNTRY_CG),
-        ethToWei(MIN_ZONE_DTH_STAKE),
+    it("owner should be able to modify BID_PERIOD, register zone and place bid", async () => {
+      await protocolControllerInstance.updateGlobalParams(
         BID_PERIOD + ONE_HOUR * 24,
         COOLDOWN_PERIOD,
-        4,
-        4,
-        6,
+        2,
+        8,
+        3,
         { from: owner }
       );
-      const settingZone = await settingsInstance.getParams(
+      const settingZone = await protocolControllerInstance.getGlobalParams();
+      const zonePrice = await protocolControllerInstance.getCountryFloorPrice(
         asciiToHex(COUNTRY_CG)
       );
       expect(settingZone.BID_PERIOD).to.be.bignumber.equal(
@@ -474,9 +419,7 @@ contract("Zone + Settings", (accounts) => {
       expect(auctionLive.highestBidder).to.be.equal(user2);
 
       // modify bid period to 36h
-      await settingsInstance.setParams(
-        asciiToHex(COUNTRY_CG),
-        ethToWei(MIN_ZONE_DTH_STAKE),
+      await protocolControllerInstance.updateGlobalParams(
         BID_PERIOD - ONE_HOUR * 12,
         COOLDOWN_PERIOD,
         4,
@@ -509,9 +452,7 @@ contract("Zone + Settings", (accounts) => {
     });
 
     it("owner should be able to modify COOLDOWN_PERIOD", async () => {
-      await settingsInstance.setParams(
-        asciiToHex(COUNTRY_CG),
-        ethToWei(MIN_ZONE_DTH_STAKE),
+      await protocolControllerInstance.updateGlobalParams(
         BID_PERIOD,
         COOLDOWN_PERIOD + ONE_HOUR * 6,
         4,
@@ -519,8 +460,7 @@ contract("Zone + Settings", (accounts) => {
         6,
         { from: owner }
       );
-      const settingZone = await settingsInstance.getParams(
-        asciiToHex(COUNTRY_CG)
+      const settingZone = await protocolControllerInstance.getGlobalParams(
       );
       expect(settingZone.COOLDOWN_PERIOD).to.be.bignumber.equal(
         (COOLDOWN_PERIOD + ONE_HOUR * 6).toString()
@@ -542,9 +482,7 @@ contract("Zone + Settings", (accounts) => {
       );
 
       // modify for next iteration
-      await settingsInstance.setParams(
-        asciiToHex(COUNTRY_CG),
-        ethToWei(MIN_ZONE_DTH_STAKE),
+      await protocolControllerInstance.updateGlobalParams(
         BID_PERIOD,
         ONE_HOUR * 6,
         4,
@@ -572,15 +510,64 @@ contract("Zone + Settings", (accounts) => {
       expect(auctionLive.highestBidder).to.be.equal(user5);
     });
 
-    it("owner should be able to modify ENTRY FEE", async () => {
+    it.only("can withdraw DTH", async () => {
+      // change entry fees and verify it after auction
+      const preBalance = await dthInstance.balanceOf(
+        protocolControllerInstance.address
+      );
+        ({ zoneInstance, tellerInstance } = await createZone(
+        user1,
+        MIN_ZONE_DTH_STAKE,
+        COUNTRY_CG,
+        VALID_CG_ZONE_GEOHASH
+      ));
+      await tellerInstance.addTeller(
+        asciiToHex(TELLER_CG_POSITION),
+        TELLER_CG_CURRENCY_ID,
+        asciiToHex(TELLER_CG_MESSENGER),
+        TELLER_CG_SELLRATE,
+        TELLER_CG_BUYRATE,
+        TELLER_CG_SETTINGS,
+        ADDRESS_BURN,
+        TELLER_CG_REFFEE,
+        asciiToHex("ETH-BTC"),
+        { from: user1 }
+      );
+
+      // lancer le fast forward avance dans le temp
+      await timeTravel.inSecs(ONE_DAY * 365);
+      await zoneInstance.processState();
+            // lacher la zone
+      await zoneInstance.release({ from: user1 });
+      // console.log('balance post', postBalance.toString());
+      const postBalance = await dthInstance.balanceOf(
+        protocolControllerInstance.address
+      );
+      expect(postBalance).to.be.bignumber.gt(preBalance);
+
+      // do withdraw
+      const balanceRecipientPre = await dthInstance.balanceOf(user5);
+
+      await protocolControllerInstance.withdrawDth(user5,postBalance,'TEST', {from: owner})
+      const balanceRecipientPost = await dthInstance.balanceOf(user5);
+      
+      expect(postBalance).to.be.bignumber.equal(balanceRecipientPost);
+      // console.log('balanceZeroPost', balanceZeroPost.toString())
+
+    });
+
+    it.skip("owner should be able to modify ENTRY FEE", async () => {
       // change entry fees and verify it after auction
     });
-    it("owner should be able to modify MIN RAISE", async () => {
+    it.skip("owner should be able to modify MIN RAISE", async () => {
       // change min raise and verify it after auction
     });
-    it("owner should be able to modify ZONE_TAX", async () => {
+    it.skip("owner should be able to modify ZONE_TAX", async () => {
       // change min raise and verify it after auction
       // verify amount on the duration
     });
   });
 });
+
+14293400462962962962
+14600000462962962962

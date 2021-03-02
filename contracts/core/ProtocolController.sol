@@ -2,9 +2,13 @@ pragma solidity ^0.8.1;
 
 import "openzeppelin-solidity/contracts/access/Ownable.sol";
 
+import "../interfaces/IERC223ReceivingContract.sol";
+import "../interfaces/IDetherToken.sol";
 // This contracts will be change to an aragon DAO
 
-contract Settings is Ownable {
+// TODO:
+// add events
+contract ProtocolController is IERC223ReceivingContract, Ownable {
 
     // ------------------------------------------------
     //
@@ -29,9 +33,9 @@ contract Settings is Ownable {
     // Variables Public
     //
     // ------------------------------------------------
-
+    IDetherToken public dth;
+    uint256 public dthBalance;
     mapping (bytes2 => FloorStake_t) floorStakesPrices;
-
     Params_t public globalParams = Params_t({
         // FLOOR_STAKE_PRICE : 100 ether,
         BID_PERIOD : 48 hours,
@@ -40,16 +44,6 @@ contract Settings is Ownable {
         ZONE_TAX : 4,
         MIN_RAISE : 6
     });
-    
-    // Params_t public defaultValue = Params_t({
-    //     FLOOR_STAKE_PRICE : 100 ether,
-    //     BID_PERIOD : 48 hours,
-    //     COOLDOWN_PERIOD : 24 hours,
-    //     ENTRY_FEE : 4,
-    //     ZONE_TAX : 4,
-    //     MIN_RAISE : 6,
-    //     _changed : false
-    // });
 
 
     // ------------------------------------------------
@@ -59,7 +53,18 @@ contract Settings is Ownable {
     // ------------------------------------------------
 
     event ChangeParams(string params);
-
+    event ReceivedTaxes(
+        address indexed tokenFrom,
+        uint256 taxes,
+        address indexed from
+    );
+    event WithdrawDth(address recipient, uint256 amount, string id);
+    /*
+     * Constructor
+     */
+    constructor(address _dth) {
+        dth = IDetherToken(_dth);
+    }
     // ------------------------------------------------
     //
     // Functions Getters Public
@@ -91,49 +96,6 @@ function getCountryFloorPrice(bytes2 zoneCountry) public view returns(
         return 100 ether;
     }
 }
-
-
-
-    // function getParams (bytes2 zoneCountry) public view returns(
-    //    uint256 FLOOR_STAKE_PRICE,
-    //     uint256 BID_PERIOD,
-    //     uint256 COOLDOWN_PERIOD,
-    //     uint256 ENTRY_FEE,
-    //     uint256 ZONE_TAX,
-    //     uint256 MIN_RAISE
-    // ) {
-    //     if (protocolParams[zoneCountry].FLOOR_STAKE_PRICE > 0 && protocolParams[zoneCountry]._changed )
-    //     {
-    //         return (
-    //             protocolParams[zoneCountry].FLOOR_STAKE_PRICE,
-    //             protocolParams[zoneCountry].BID_PERIOD,
-    //             protocolParams[zoneCountry].COOLDOWN_PERIOD,
-    //             protocolParams[zoneCountry].ENTRY_FEE,
-    //             protocolParams[zoneCountry].ZONE_TAX,
-    //             protocolParams[zoneCountry].MIN_RAISE
-    //         );
-
-    //     } else { // return default value
-    //         return (
-    //             100 ether,      // == 100 DTH
-    //             48 hours,       
-    //             24 hours,
-    //             4,              // 4% of the amount already staked
-    //             4,              // 0.04% daily, around 15% yearly
-    //             6               // everybid should be more than 6% that the previous highestbid
-    //         );
-    //     }
-    // }
-
-    // function getZonePrice (bytes2 zoneCountry) public view returns (uint256 price) {
-    //     if (protocolParams[zoneCountry].FLOOR_STAKE_PRICE > 0 && protocolParams[zoneCountry]._changed ) {
-    //          return protocolParams[zoneCountry].FLOOR_STAKE_PRICE;
-
-    //     } else {
-    //                    return 100 ether;
-    //     }
-    // }
-    // event SetParams(uint256FLOOR_STAKE_PRICE,)
 
     function setCountryFloorPrice (
         bytes2 zoneCountry,
@@ -172,4 +134,18 @@ function getCountryFloorPrice(bytes2 zoneCountry) public view returns(
             globalParams.MIN_RAISE = MIN_RAISE;
             // emit
         }
+    
+    function withdrawDth(address recipient, uint256 amount, string calldata id) public onlyOwner  {
+        require(amount <= dth.balanceOf(address(this)));
+        dth.transfer(recipient, amount);
+        emit WithdrawDth(recipient, amount, id);
+    }
+
+    function tokenFallback(
+        address _from,
+        uint256 _value,
+        bytes memory _data
+    ) public override {
+
+    }
 }

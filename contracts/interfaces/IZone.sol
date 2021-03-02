@@ -30,9 +30,8 @@ abstract contract IZone {
         uint256 _dthAmount,
         address _dth,
         address _zoneFactory,
-        address _taxCollector,
         address _teller,
-        address _settings
+        address _protocolController
     ) external virtual;
 
     function connectToTellerContract(address _teller) external virtual;
