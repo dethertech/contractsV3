@@ -52,24 +52,22 @@ module.exports = async (deployer, network) => {
       );
   }
 
-  await deployer.deploy(TaxCollector, dth.address, ADDRESS_ZERO, {
-    gas: 6500000,
-  });
+  await deployer.deploy(TaxCollector, dth.address, ADDRESS_ZERO);
   const taxCollector = await TaxCollector.deployed();
 
-  await deployer.deploy(CertifierRegistry, { gas: 6500000 });
+  await deployer.deploy(CertifierRegistry);
   const certifierRegistry = await CertifierRegistry.deployed();
 
-  await deployer.deploy(GeoRegistry, { gas: 6500000 });
+  await deployer.deploy(GeoRegistry);
   const geo = await GeoRegistry.deployed();
 
-  await deployer.deploy(Settings, { gas: 6500000 });
+  await deployer.deploy(Settings);
   const settings = await Settings.deployed();
 
-  await deployer.deploy(Zone, { gas: 10000000 });
+  await deployer.deploy(Zone);
   const zoneImplementation = await Zone.deployed();
 
-  await deployer.deploy(Teller, { gas: 6500000 });
+  await deployer.deploy(Teller);
   const tellerImplementation = await Teller.deployed();
 
   await deployer.deploy(Users, geo.address, certifierRegistry.address, {
@@ -85,8 +83,7 @@ module.exports = async (deployer, network) => {
     zoneImplementation.address,
     tellerImplementation.address,
     taxCollector.address,
-    settings.address,
-    { gas: 6500000 }
+    settings.address
   );
   const zoneFactory = await ZoneFactory.deployed();
 
@@ -94,7 +91,7 @@ module.exports = async (deployer, network) => {
     case "kovan":
 
     case "mainnet":
-      await users.setZoneFactory(ZoneFactory.address, { gas: 6500000 });
+      await users.setZoneFactory(ZoneFactory.address);
       console.log("Set zone factory");
   }
 
@@ -103,7 +100,6 @@ module.exports = async (deployer, network) => {
     dth.address,
     geo.address,
     users.address,
-    zoneFactory.address,
-    { gas: 6500000 }
+    zoneFactory.address
   );
 };
