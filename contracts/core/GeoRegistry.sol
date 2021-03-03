@@ -1,4 +1,4 @@
-pragma solidity ^0.5.17;
+pragma solidity ^0.8.1;
 
 contract GeoRegistry {
     // ------------------------------------------------
@@ -37,7 +37,7 @@ contract GeoRegistry {
     //
     // ------------------------------------------------
 
-    constructor() public {
+    constructor() {
         // TODO: improve below code? https://medium.com/@imolfar/bitwise-operations-and-bit-manipulation-in-solidity-ethereum-1751f3d2e216
         charToBitmask[bytes1("v")] = hex"80000000"; // 2147483648
         charToBitmask[bytes1("y")] = hex"40000000"; // 1073741824

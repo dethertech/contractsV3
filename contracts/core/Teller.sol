@@ -1,19 +1,10 @@
-pragma solidity ^0.5.17;
-
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+pragma solidity ^0.8.1;
 
 import "../interfaces/IGeoRegistry.sol";
 import "../interfaces/IZone.sol";
 import "../interfaces/ITeller.sol";
 
 contract Teller {
-    // ------------------------------------------------
-    //
-    // Library init
-    //
-    // ------------------------------------------------
-
-    using SafeMath for uint256;
 
     // ------------------------------------------------
     //
@@ -156,7 +147,7 @@ contract Teller {
         view
         returns (uint256 referrerAmount)
     {
-        referrerAmount = _value.mul(teller.refFee).div(1000);
+        referrerAmount = _value * (teller.refFee / 1000);
     }
 
     function getTeller()

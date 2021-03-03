@@ -7,7 +7,6 @@ const ZoneFactory = artifacts.require("ZoneFactory.sol");
 const Zone = artifacts.require("Zone.sol");
 const Teller = artifacts.require("Teller.sol");
 const Shops = artifacts.require("Shops.sol");
-const ShopsDispute = artifacts.require("ShopsDispute.sol");
 const TaxCollector = artifacts.require("TaxCollector.sol");
 const Settings = artifacts.require("Settings.sol");
 

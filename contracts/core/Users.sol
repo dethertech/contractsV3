@@ -1,20 +1,11 @@
-pragma solidity ^0.5.17;
+pragma solidity ^0.8.1;
 pragma experimental ABIEncoderV2;
-
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
 import "../interfaces/ICertifier.sol";
 import "../interfaces/IGeoRegistry.sol";
 import "../interfaces/ICertifierRegistry.sol";
 
 contract Users {
-    // ------------------------------------------------
-    //
-    // Library init
-    //
-    // ------------------------------------------------
-
-    using SafeMath for uint256;
 
     // ------------------------------------------------
     //
@@ -34,7 +25,7 @@ contract Users {
     //
     // ------------------------------------------------
 
-    constructor(address _geo, address _certifierRegistry) public {
+    constructor(address _geo, address _certifierRegistry) {
         geo = IGeoRegistry(_geo);
         certifierRegistry = ICertifierRegistry(_certifierRegistry);
     }

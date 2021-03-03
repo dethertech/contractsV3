@@ -1,4 +1,4 @@
-pragma solidity ^0.5.17;
+pragma solidity ^0.8.1;
 
 /**
  * @title EIP 1167: Minimal Proxy Contract

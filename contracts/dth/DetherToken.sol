@@ -1,20 +1,18 @@
-pragma solidity >=0.4.21 <=0.7.4;
+pragma solidity ^0.8.1;
 
 import "../interfaces/IERC223ReceivingContract.sol";
 // import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
-import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import "openzeppelin-solidity/contracts/access/Ownable.sol";
 
 import "openzeppelin-solidity/contracts/utils/Address.sol";
-import "openzeppelin-solidity/contracts/GSN/Context.sol";
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "openzeppelin-solidity/contracts/utils/Context.sol";
 
-// ------- zeppelin-solidity/contracts/ownership/Ownable.sol [npm] zeppelin-solidity@1.6.0
+// ------- zeppelin-solidity/contracts/access/Ownable.sol [npm] zeppelin-solidity@1.6.0
 
 // ------- zeppelin-solidity/contracts/token/ERC20/MintableToken.sol [npm] zeppelin-solidity@1.6.0
 
 contract ERC20 is Context, IERC20, Ownable {
-    using SafeMath for uint256;
     using Address for address;
 
     mapping(address => uint256) private _balances;
@@ -36,9 +34,9 @@ contract ERC20 is Context, IERC20, Ownable {
         _;
     }
 
-    constructor(string memory name, string memory symbol) public {
-        _name = name;
-        _symbol = symbol;
+    constructor(string memory n, string memory sym) {
+        _name = n;
+        _symbol = sym;
         _decimals = 18;
     }
 
@@ -65,14 +63,14 @@ contract ERC20 is Context, IERC20, Ownable {
     /**
      * @dev See {IERC20-totalSupply}.
      */
-    function totalSupply() public  view returns (uint256) {
+    function totalSupply() public override view returns (uint256) {
         return _totalSupply;
     }
 
     /**
      * @dev See {IERC20-balanceOf}.
      */
-    function balanceOf(address account) public  view returns (uint256) {
+    function balanceOf(address account) public override view returns (uint256) {
         return _balances[account];
     }
 
@@ -86,8 +84,7 @@ contract ERC20 is Context, IERC20, Ownable {
      */
     function transfer(address recipient, uint256 amount)
         public
-        
-        
+        override
         returns (bool)
     {
         _transfer(_msgSender(), recipient, amount);
@@ -99,8 +96,7 @@ contract ERC20 is Context, IERC20, Ownable {
      */
     function allowance(address owner, address spender)
         public
-        
-        
+        override
         view
         returns (uint256)
     {
@@ -116,8 +112,7 @@ contract ERC20 is Context, IERC20, Ownable {
      */
     function approve(address spender, uint256 amount)
         public
-        
-        
+        override
         returns (bool)
     {
         _approve(_msgSender(), spender, amount);
@@ -140,15 +135,13 @@ contract ERC20 is Context, IERC20, Ownable {
         address sender,
         address recipient,
         uint256 amount
-    ) public   returns (bool) {
+    ) public override returns (bool) {
+        require(_allowances[sender][_msgSender()] > amount, "ERC20: transfer amount exceeds allowance");
         _transfer(sender, recipient, amount);
         _approve(
             sender,
             _msgSender(),
-            _allowances[sender][_msgSender()].sub(
-                amount,
-                "ERC20: transfer amount exceeds allowance"
-            )
+            _allowances[sender][_msgSender()] - amount
         );
         return true;
     }
@@ -173,7 +166,7 @@ contract ERC20 is Context, IERC20, Ownable {
         _approve(
             _msgSender(),
             spender,
-            _allowances[_msgSender()][spender].add(addedValue)
+            _allowances[_msgSender()][spender] + addedValue
         );
         return true;
     }
@@ -197,13 +190,11 @@ contract ERC20 is Context, IERC20, Ownable {
         
         returns (bool)
     {
+        require(_allowances[_msgSender()][spender] >= subtractedValue, "ERC20: decreased allowance below zero");
         _approve(
             _msgSender(),
             spender,
-            _allowances[_msgSender()][spender].sub(
-                subtractedValue,
-                "ERC20: decreased allowance below zero"
-            )
+            _allowances[_msgSender()][spender] - subtractedValue
         );
         return true;
     }
@@ -232,11 +223,10 @@ contract ERC20 is Context, IERC20, Ownable {
 
         _beforeTokenTransfer(sender, recipient, amount);
 
-        _balances[sender] = _balances[sender].sub(
-            amount,
-            "ERC20: transfer amount exceeds balance"
-        );
-        _balances[recipient] = _balances[recipient].add(amount);
+        require(_balances[sender] >= amount, "ERC20: transfer amount exceeds balance");
+        _balances[sender] = _balances[sender] - amount;
+
+        _balances[recipient] = _balances[recipient] + amount;
         emit Transfer(sender, recipient, amount);
     }
 
@@ -253,8 +243,8 @@ contract ERC20 is Context, IERC20, Ownable {
         canMint
         returns (bool)
     {
-        _totalSupply = _totalSupply.add(_amount);
-        _balances[_to] = _balances[_to].add(_amount);
+        _totalSupply = _totalSupply + _amount;
+        _balances[_to] = _balances[_to] + _amount;
         emit Mint(_to, _amount);
         emit Transfer(address(0), _to, _amount);
         return true;
@@ -275,12 +265,10 @@ contract ERC20 is Context, IERC20, Ownable {
         require(account != address(0), "ERC20: burn from the zero address");
 
         _beforeTokenTransfer(account, address(0), amount);
+        require(_balances[account] >= amount, "ERC20: burn amount exceeds balance");
+        _balances[account] = _balances[account] - amount;
 
-        _balances[account] = _balances[account].sub(
-            amount,
-            "ERC20: burn amount exceeds balance"
-        );
-        _totalSupply = _totalSupply.sub(amount);
+        _totalSupply = _totalSupply - amount;
         emit Transfer(account, address(0), amount);
     }
 
@@ -346,7 +334,7 @@ contract ERC20 is Context, IERC20, Ownable {
  * @title ERC223 standard token implementation.
  */
 // contract ERC223BasicToken is ERC223Basic, BasicToken {
- contract ERC223BasicToken is ERC20 {
+ abstract contract ERC223BasicToken is ERC20 {
     event Transfer(
         address indexed _from,
         address indexed _to,
@@ -391,5 +379,5 @@ contract DetherToken is ERC20, ERC223BasicToken {
     /**
      *@dev Constructor that set Detailed of the ERC20 token.
      */
-    constructor() public ERC20(NAME, SYMBOL) {}
+    constructor() ERC20(NAME, SYMBOL) {}
 }

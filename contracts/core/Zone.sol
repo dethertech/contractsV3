@@ -1,6 +1,4 @@
-pragma solidity ^0.5.17;
-
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+pragma solidity ^0.8.1;
 
 import "../interfaces/IERC223ReceivingContract.sol";
 import "../interfaces/IDetherToken.sol";
@@ -10,13 +8,6 @@ import "../interfaces/ITeller.sol";
 import "../interfaces/ISettings.sol";
 
 contract Zone is IERC223ReceivingContract {
-    // ------------------------------------------------
-    //
-    // Library init
-    //
-    // ------------------------------------------------
-
-    using SafeMath for uint256;
 
     // ------------------------------------------------
     //
@@ -144,10 +135,10 @@ contract Zone is IERC223ReceivingContract {
         taxCollector = _taxCollector;
 
         zoneOwner.addr = _zoneOwner;
-        zoneOwner.startTime = now;
+        zoneOwner.startTime = block.timestamp;
         zoneOwner.staked = _dthAmount;
         zoneOwner.balance = _dthAmount;
-        zoneOwner.lastTaxTime = now;
+        zoneOwner.lastTaxTime = block.timestamp;
         zoneOwner.auctionId = 0; // was not gained by winning an auction
 
         inited = true;
@@ -174,11 +165,11 @@ contract Zone is IERC223ReceivingContract {
         // TODO use smaller uint variables, hereby preventing under/overflows, so no need for SafeMath
         // source: https://programtheblockchain.com/posts/2018/09/19/implementing-harberger-tax-deeds/
         taxAmount = _dthAmount
-            .mul(_endTime.sub(_startTime))
-            .mul(ZONE_TAX)
-            .div(10000)
-            .div(1 days);
-        keepAmount = _dthAmount.sub(taxAmount);
+            * (_endTime - _startTime)
+            * (ZONE_TAX)
+            / (10000)
+            / (1 days);
+        keepAmount = _dthAmount - taxAmount;
     }
 
     function calcEntryFee(uint256 _value)
@@ -186,8 +177,8 @@ contract Zone is IERC223ReceivingContract {
         view
         returns (uint256 burnAmount, uint256 bidAmount)
     {
-        burnAmount = _value.mul(ENTRY_FEE).div(100); // 4%
-        bidAmount = _value.sub(burnAmount); // 96%
+        burnAmount = _value * ENTRY_FEE / 100; // 4%
+        bidAmount = _value - burnAmount; // 96%
     }
 
     function auctionExists(uint256 _auctionId) external view returns (bool) {
@@ -246,7 +237,7 @@ contract Zone is IERC223ReceivingContract {
             auction.state == AuctionState.Started &&
             auction.highestBidder == zoneOwner.addr
         ) {
-            highestBid = highestBid.add(zoneOwner.staked);
+            highestBid = highestBid + zoneOwner.staked;
         }
 
         return (
@@ -317,8 +308,7 @@ contract Zone is IERC223ReceivingContract {
     function _removeZoneOwner(bool fromRelease) private {
         // if we call this function from release() we shouldn't update withdrawableDth as we already send dth
         if (!fromRelease) {
-            withdrawableDth[zoneOwner.addr] = withdrawableDth[zoneOwner.addr]
-                .add(zoneOwner.balance);
+            withdrawableDth[zoneOwner.addr] = withdrawableDth[zoneOwner.addr] + (zoneOwner.balance);
         }
 
         if (teller.hasTeller()) {
@@ -334,13 +324,13 @@ contract Zone is IERC223ReceivingContract {
     function _handleTaxPayment() private {
         // processState ensured that: no running auction + there is a zone owner
 
-        if (zoneOwner.lastTaxTime >= now) {
+        if (zoneOwner.lastTaxTime >= block.timestamp) {
             return; // short-circuit: multiple txes in 1 block OR many blocks but in same Auction
         }
 
         (uint256 taxAmount, uint256 keepAmount) = calcHarbergerTax(
             zoneOwner.lastTaxTime,
-            now,
+            block.timestamp,
             zoneOwner.staked
         );
 
@@ -352,11 +342,11 @@ contract Zone is IERC223ReceivingContract {
             require(dth.transfer(taxCollector, oldZoneOwnerBalance));
         } else {
             // zone owner can pay due taxes
-            zoneOwner.balance = zoneOwner.balance.sub(taxAmount);
-            zoneOwner.lastTaxTime = now;
+            zoneOwner.balance = zoneOwner.balance - taxAmount;
+            zoneOwner.lastTaxTime = block.timestamp;
             (address referrer, uint256 refFee) = teller.getReferrer();
             if (referrer != address(0x00) && refFee > 0) {
-                uint256 referralFee = taxAmount.mul(refFee).div(1000);
+                uint256 referralFee = taxAmount * refFee / 1000;
 
                 // to avoid Dos with revert if referrer is contract
                 bytes memory payload = abi.encodeWithSignature(
@@ -390,8 +380,8 @@ contract Zone is IERC223ReceivingContract {
 
         if (zoneOwner.addr == highestBidder) {
             // current zone owner won the auction, extend his zone ownershp
-            zoneOwner.staked = zoneOwner.staked.add(highestBid);
-            zoneOwner.balance = zoneOwner.balance.add(highestBid);
+            zoneOwner.staked = zoneOwner.staked + highestBid;
+            zoneOwner.balance = zoneOwner.balance + highestBid;
 
             // need to set it since it might've been zero
             zoneOwner.auctionId = currentAuctionId; // the (last) auctionId that gave the zoneOwner zone ownership
@@ -413,11 +403,11 @@ contract Zone is IERC223ReceivingContract {
         // (new) zone owner needs to pay taxes from the moment he acquires zone ownership until now
         (uint256 taxAmount, uint256 keepAmount) = calcHarbergerTax(
             auctionEndTime,
-            now,
+            block.timestamp,
             zoneOwner.staked
         );
-        zoneOwner.balance = zoneOwner.balance.sub(taxAmount);
-        zoneOwner.lastTaxTime = now;
+        zoneOwner.balance = zoneOwner.balance - taxAmount;
+        zoneOwner.lastTaxTime = block.timestamp;
         zoneFactory.removeActiveBidder(highestBidder);
         zoneFactory.removeCurrentZoneBidders();
         zoneFactory.emitAuctionEnded(
@@ -444,7 +434,7 @@ contract Zone is IERC223ReceivingContract {
             // while uaction is running, no taxes need to be paid
 
             // handling of taxes around change of zone ownership are handled inside _endAuction
-            if (now >= auctionIdToAuction[currentAuctionId].endTime)
+            if (block.timestamp >= auctionIdToAuction[currentAuctionId].endTime)
                 _endAuction();
         } else {
             // no running auction, currentAuctionId could be zero
@@ -474,14 +464,11 @@ contract Zone is IERC223ReceivingContract {
             .highestBidder];
 
         if (_sender == zoneOwner.addr) {
-            uint256 dthAddedBidsAmount = auctionBids[currentAuctionId][_sender]
-                .add(_dthAmount);
+            uint256 dthAddedBidsAmount = auctionBids[currentAuctionId][_sender] + _dthAmount;
             // the current zone owner's stake also counts in his bid
             require(
-                zoneOwner.staked.add(dthAddedBidsAmount) >=
-                    currentHighestBid.add(
-                        currentHighestBid.mul(MIN_RAISE).div(100)
-                    ),
+                zoneOwner.staked + dthAddedBidsAmount >=
+                currentHighestBid + currentHighestBid * MIN_RAISE / 100,
                 "bid + already staked is less than current highest + MIN_RAISE"
             );
 
@@ -495,9 +482,7 @@ contract Zone is IERC223ReceivingContract {
                 );
                 require(
                     bidAmount >=
-                        currentHighestBid.add(
-                            currentHighestBid.mul(MIN_RAISE).div(100)
-                        ),
+                    currentHighestBid + currentHighestBid * MIN_RAISE / 100,
                     "bid is less than current highest + MIN_RAISE"
                 );
 
@@ -505,13 +490,10 @@ contract Zone is IERC223ReceivingContract {
                 require(dth.transfer(taxCollector, burnAmount));
             } else {
                 // not the first bid, no entry fee
-                uint256 newUserTotalBid = auctionBids[currentAuctionId][_sender]
-                    .add(_dthAmount);
+                uint256 newUserTotalBid = auctionBids[currentAuctionId][_sender] + _dthAmount;
                 require(
                     newUserTotalBid >=
-                        currentHighestBid.add(
-                            currentHighestBid.mul(MIN_RAISE).div(100)
-                        ),
+                    currentHighestBid + currentHighestBid * MIN_RAISE / 100,
                     "bid is less than current highest + MIN_RAISE"
                 );
 
@@ -538,7 +520,7 @@ contract Zone is IERC223ReceivingContract {
         (uint256 burnAmount, uint256 bidAmount) = calcEntryFee(_dthAmount);
         require(
             bidAmount >
-                zoneOwner.staked.add(zoneOwner.staked.mul(MIN_RAISE).div(100)),
+            zoneOwner.staked + zoneOwner.staked * MIN_RAISE / 100,
             "bid is lower than current zone stake"
         );
 
@@ -547,8 +529,8 @@ contract Zone is IERC223ReceivingContract {
 
         auctionIdToAuction[newAuctionId] = Auction({
             state: AuctionState.Started,
-            startTime: now,
-            endTime: now.add(BID_PERIOD),
+            startTime: block.timestamp,
+            endTime: block.timestamp + BID_PERIOD,
             highestBidder: _sender // caller (challenger)
         });
 
@@ -581,16 +563,14 @@ contract Zone is IERC223ReceivingContract {
             if (zoneOwner.auctionId == 0) {
                 // current zone owner did not become owner by winning an auction, but by creating this zone or caliming it when it was free
                 require(
-                    now > zoneOwner.startTime.add(COOLDOWN_PERIOD),
+                    block.timestamp > zoneOwner.startTime + COOLDOWN_PERIOD,
                     "cooldown period did not end yet"
                 );
             } else {
                 // current zone owner became owner by winning an auction (which has ended)
                 require(
-                    now >
-                        auctionIdToAuction[currentAuctionId].endTime.add(
-                            COOLDOWN_PERIOD
-                        ),
+                    block.timestamp >
+                    auctionIdToAuction[currentAuctionId].endTime + COOLDOWN_PERIOD,
                     "cooldown period did not end yet"
                 );
             }
@@ -619,10 +599,10 @@ contract Zone is IERC223ReceivingContract {
         // NOTE: empty zone claim will not have entry fee deducted, its not bidding it's taking immediately
         zoneFactory.changeOwner(_sender, zoneOwner.addr, address(this));
         zoneOwner.addr = _sender;
-        zoneOwner.startTime = now;
+        zoneOwner.startTime = block.timestamp;
         zoneOwner.staked = _dthAmount;
         zoneOwner.balance = _dthAmount;
-        zoneOwner.lastTaxTime = now;
+        zoneOwner.lastTaxTime = block.timestamp;
         zoneOwner.auctionId = 0; // since it was not gained wby winning an auction
         zoneFactory.emitClaimFreeZone(geohash, _sender, _dthAmount);
     }
@@ -640,7 +620,7 @@ contract Zone is IERC223ReceivingContract {
         );
 
         uint256 oldBalance = zoneOwner.balance;
-        uint256 newBalance = oldBalance.add(_dthAmount);
+        uint256 newBalance = oldBalance + _dthAmount;
         zoneOwner.balance = newBalance;
 
         // a zone owner can currently keep calling this to increase his dth balance inside the zone
@@ -661,7 +641,7 @@ contract Zone is IERC223ReceivingContract {
         address _from,
         uint256 _value,
         bytes memory _data // onlyWhenZoneEnabled
-    ) public  {
+    ) public override {
         require(inited == true, "contract not yet initialized");
         require(
             msg.sender == address(dth),
@@ -741,7 +721,7 @@ contract Zone is IERC223ReceivingContract {
         uint256 withdrawAmount = auctionBids[_auctionId][msg.sender];
         auctionBids[_auctionId][msg.sender] = 0;
         if (withdrawableDth[msg.sender] > 0) {
-            withdrawAmount = withdrawAmount.add(withdrawableDth[msg.sender]);
+            withdrawAmount = withdrawAmount + withdrawableDth[msg.sender];
             withdrawableDth[msg.sender] = 0;
         }
         zoneFactory.removeActiveBidder(msg.sender);
@@ -782,13 +762,11 @@ contract Zone is IERC223ReceivingContract {
                 // if user supplies the same auctionId multiple times in auctionIds,
                 // only the first one will get a withdrawal amount
                 auctionBids[auctionId][msg.sender] = 0;
-                withdrawAmountTotal = withdrawAmountTotal.add(withdrawAmount);
+                withdrawAmountTotal = withdrawAmountTotal + withdrawAmount;
             }
         }
         if (withdrawableDth[msg.sender] > 0) {
-            withdrawAmountTotal = withdrawAmountTotal.add(
-                withdrawableDth[msg.sender]
-            );
+            withdrawAmountTotal = withdrawAmountTotal + withdrawableDth[msg.sender];
             withdrawableDth[msg.sender] = 0;
         }
         zoneFactory.removeActiveBidder(msg.sender);

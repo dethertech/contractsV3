@@ -1,29 +1,31 @@
-pragma solidity ^0.5.17;
+pragma solidity ^0.8.1;
 
-contract IShops {
-    function dth() external view returns (address);
+abstract contract IShops {
+    function dth() external virtual view returns (address);
 
-    function withdrawableDth(address) external view returns (uint256);
+    function withdrawableDth(address) external virtual view returns (uint256);
 
-    function positionToShopAddress(bytes12) external view returns (address);
+    function positionToShopAddress(bytes12) external virtual view returns (address);
 
     // function shopsDispute() external view returns (address);
 
     function zoneToShopAddresses(bytes7, uint256)
-        external
+        external 
+        virtual
         view
         returns (address);
 
-    function geo() external view returns (address);
+    function geo() external virtual view returns (address);
 
-    function users() external view returns (address);
+    function users() external virtual view returns (address);
 
-    function countryLicensePrice(bytes2) external view returns (uint256);
+    function countryLicensePrice(bytes2) external virtual view returns (uint256);
 
-    // function setShopsDisputeContract(address _shopsDispute) external;
+    // function setShopsDisputeContract(address _shopsDispute) external virtual;
 
     function getShopByAddr(address _addr)
-        external
+        external 
+        virtual
         view
         returns (
             bytes12,
@@ -37,7 +39,8 @@ contract IShops {
         );
 
     function getShopByPos(bytes12 _position)
-        external
+        external 
+        virtual
         view
         returns (
             bytes12,
@@ -51,44 +54,47 @@ contract IShops {
         );
 
     function getShopAddressesInZone(bytes7 _zoneGeohash)
-        external
+        external 
+        virtual
         view
         returns (address[] memory);
 
     function shopByAddrExists(address _shopAddress)
-        external
+        external 
+        virtual
         view
         returns (bool);
 
     // function getShopDisputeID(address _shopAddress)
-    //     external
+    //     external virtual
     //     view
     //     returns (uint256);
 
-    // function hasDispute(address _shopAddress) external view returns (bool);
+    // function hasDispute(address _shopAddress) external virtual view returns (bool);
 
     function getShopStaked(address _shopAddress)
-        external
+        external 
+        virtual
         view
         returns (uint256);
 
     function setCountryLicensePrice(bytes2 _countryCode, uint256 _priceDTH)
-        external;
+        external virtual;
 
     function tokenFallback(
         address _from,
         uint256 _value,
         bytes calldata _data
-    ) external;
+    ) external virtual;
 
-    function removeShop() external;
+    function removeShop() external virtual;
 
-    function withdrawDth() external;
+    function withdrawDth() external virtual;
 
-    // function setDispute(address _shopAddress, uint256 _disputeID) external;
+    // function setDispute(address _shopAddress, uint256 _disputeID) external virtual;
 
-    // function unsetDispute(address _shopAddress) external;
+    // function unsetDispute(address _shopAddress) external virtual;
 
     // function removeDisputedShop(address _shopAddress, address _challenger)
-    //     external;
+    //     external virtual;
 }
