@@ -29,7 +29,7 @@ module.exports = async (deployer, network) => {
     // use a fake instance to test locally using ganache
     // fall through
     case "ropsten":
-      await deployer.deploy(DetherToken, { gas: 6500000 });
+      await deployer.deploy(DetherToken);
       dth = await DetherToken.deployed();
       break;
 
@@ -50,19 +50,19 @@ module.exports = async (deployer, network) => {
       );
   }
 
-  await deployer.deploy(CertifierRegistry, { gas: 6500000 });
+  await deployer.deploy(CertifierRegistry);
   const certifierRegistry = await CertifierRegistry.deployed();
 
-  await deployer.deploy(GeoRegistry, { gas: 6500000 });
+  await deployer.deploy(GeoRegistry);
   const geo = await GeoRegistry.deployed();
 
-  await deployer.deploy(ProtocolController, dth.address, { gas: 6500000 });
+  await deployer.deploy(ProtocolController, dth.address);
   const protocolController = await ProtocolController.deployed();
 
-  await deployer.deploy(Zone, { gas: 10000000 });
+  await deployer.deploy(Zone);
   const zoneImplementation = await Zone.deployed();
 
-  await deployer.deploy(Teller, { gas: 6500000 });
+  await deployer.deploy(Teller);
   const tellerImplementation = await Teller.deployed();
 
   await deployer.deploy(Users, geo.address, certifierRegistry.address, {
@@ -86,7 +86,7 @@ module.exports = async (deployer, network) => {
     case "kovan":
 
     case "mainnet":
-      await users.setZoneFactory(ZoneFactory.address, { gas: 6500000 });
+      await users.setZoneFactory(ZoneFactory.address);
       console.log("Set zone factory");
   }
 
@@ -95,7 +95,6 @@ module.exports = async (deployer, network) => {
     dth.address,
     geo.address,
     users.address,
-    zoneFactory.address,
-    { gas: 6500000 }
+    zoneFactory.address
   );
 };
