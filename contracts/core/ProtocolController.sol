@@ -1,4 +1,5 @@
 pragma solidity ^0.8.1;
+pragma experimental ABIEncoderV2;
 
 import "openzeppelin-solidity/contracts/access/Ownable.sol";
 
@@ -16,7 +17,6 @@ contract ProtocolController is IERC223ReceivingContract, Ownable {
     //
     // ------------------------------------------------
     struct Params_t {
-        // uint256 FLOOR_STAKE_PRICE;      // minimum required amount to stake on a zone
         uint256 BID_PERIOD;             // Time during everyon can bid, when an auction is opened
         uint256 COOLDOWN_PERIOD;        // Time when no auction can be opened after an auction end
         uint256 ENTRY_FEE;              // Amount needed to be paid when starting an auction
@@ -24,10 +24,6 @@ contract ProtocolController is IERC223ReceivingContract, Ownable {
         uint256 MIN_RAISE;
     }
 
-    struct FloorStake_t {
-        uint256 FLOOR_STAKE_PRICE;
-        bool _changed;
-    }
     // ------------------------------------------------
     //
     // Variables Public
@@ -35,7 +31,7 @@ contract ProtocolController is IERC223ReceivingContract, Ownable {
     // ------------------------------------------------
     IDetherToken public dth;
     uint256 public dthBalance;
-    mapping (bytes2 => FloorStake_t) floorStakesPrices;
+    mapping (bytes2 => uint256 ) floorStakesPrices;
     Params_t public globalParams = Params_t({
         // FLOOR_STAKE_PRICE : 100 ether,
         BID_PERIOD : 48 hours,
@@ -52,7 +48,7 @@ contract ProtocolController is IERC223ReceivingContract, Ownable {
     //
     // ------------------------------------------------
 
-    event ChangeParams(string params);
+    event ChangeParams(Params_t params);
     event ReceivedTaxes(
         address indexed tokenFrom,
         uint256 taxes,
@@ -71,27 +67,17 @@ contract ProtocolController is IERC223ReceivingContract, Ownable {
     //
     // ------------------------------------------------
 
-function getGlobalParams() public view returns(
-        uint256 BID_PERIOD,
-        uint256 COOLDOWN_PERIOD,
-        uint256 ENTRY_FEE,
-        uint256 ZONE_TAX,
-        uint256 MIN_RAISE
+ function getGlobalParams() public view returns(
+    Params_t memory params
 ) {
-    return (
-        globalParams.BID_PERIOD,
-        globalParams.COOLDOWN_PERIOD,
-        globalParams.ENTRY_FEE,
-        globalParams.ZONE_TAX,
-        globalParams.MIN_RAISE
-    );
+    return globalParams;
 }
 
 function getCountryFloorPrice(bytes2 zoneCountry) public view returns(
     uint256 countryFloorPrice
 ) {
-    if (floorStakesPrices[zoneCountry].FLOOR_STAKE_PRICE > 0 && floorStakesPrices[zoneCountry]._changed ) {
-        return floorStakesPrices[zoneCountry].FLOOR_STAKE_PRICE;
+    if (floorStakesPrices[zoneCountry] > 0 ) {
+        return floorStakesPrices[zoneCountry];
     } else {
         return 100 ether;
     }
@@ -103,37 +89,27 @@ function getCountryFloorPrice(bytes2 zoneCountry) public view returns(
     ) public onlyOwner
     {
         require(FLOOR_STAKE_PRICE >= 1 ether, 'Floor stake price must be >= 1 DTH');
-        floorStakesPrices[zoneCountry].FLOOR_STAKE_PRICE = FLOOR_STAKE_PRICE;
-        floorStakesPrices[zoneCountry]._changed = true;
+        floorStakesPrices[zoneCountry] = FLOOR_STAKE_PRICE;
     }
 
     function updateGlobalParams (
-        uint256 BID_PERIOD,
-        uint256 COOLDOWN_PERIOD,
-        uint256 ENTRY_FEE,
-        uint256 ZONE_TAX,
-        uint256 MIN_RAISE
-        )
-        public onlyOwner 
-        {
-            // check params 
-            require(BID_PERIOD >= 1 hours, 'Bid period must be >= 1 hours');
-            require(BID_PERIOD <= 30 days, 'Bid period must be >= 1 hours');
-            require(COOLDOWN_PERIOD >= 1 hours, 'Bid period must be >= 30 min ');
-            require(COOLDOWN_PERIOD <= 30 days, 'Bid period must be >= 30 min ');
-            require(BID_PERIOD > COOLDOWN_PERIOD, 'Bid period must be > cooldown period ');
-            require(ENTRY_FEE <= 25, 'Entry fee must be less than 25% of current price');
-            require(ZONE_TAX >= 1, 'Zone Tax must be at least 0.01% daily');
-            require(ZONE_TAX <= 1000, 'Zone Tax must be at least 10% daily');
-            require(MIN_RAISE < 50, 'Min raise must less than 50%');
-
-            globalParams.BID_PERIOD = BID_PERIOD;
-            globalParams.COOLDOWN_PERIOD = COOLDOWN_PERIOD;
-            globalParams.ENTRY_FEE = ENTRY_FEE;
-            globalParams.ZONE_TAX = ZONE_TAX;
-            globalParams.MIN_RAISE = MIN_RAISE;
-            // emit
-        }
+        Params_t calldata newParams
+    )
+    public onlyOwner
+    {
+        // check params
+        require(newParams.BID_PERIOD >= 1 hours, 'Bid period must be >= 1 hours');
+        require(newParams.BID_PERIOD <= 30 days, 'Bid period must be >= 1 hours');
+        require(newParams.COOLDOWN_PERIOD >= 1 hours, 'Bid period must be >= 30 min ');
+        require(newParams.COOLDOWN_PERIOD <= 30 days, 'Bid period must be >= 30 min ');
+        require(newParams.BID_PERIOD > newParams.COOLDOWN_PERIOD, 'Bid period must be > cooldown period ');
+        require(newParams.ENTRY_FEE <= 25, 'Entry fee must be less than 25% of current price');
+        require(newParams.ZONE_TAX >= 1, 'Zone Tax must be at least 0.01% daily');
+        require(newParams.ZONE_TAX <= 1000, 'Zone Tax must be at least 10% daily');
+        require(newParams.MIN_RAISE < 50, 'Min raise must less than 50%');
+        globalParams = newParams;
+        emit ChangeParams(newParams);
+    }
     
     function withdrawDth(address recipient, uint256 amount, string calldata id) public onlyOwner  {
         require(amount <= dth.balanceOf(address(this)));

@@ -212,7 +212,10 @@ contract("Zone + Settings", (accounts) => {
     certifierRegistryInstance = await CertifierRegistry.new({ from: owner });
     geoInstance = await GeoRegistry.new({ from: owner });
 
-    protocolControllerInstance = await ProtocolController.new(dthInstance.address, { from: owner });
+    protocolControllerInstance = await ProtocolController.new(
+      dthInstance.address,
+      { from: owner }
+    );
     zoneImplementationInstance = await Zone.new({
       from: owner,
     });
@@ -316,11 +319,13 @@ contract("Zone + Settings", (accounts) => {
     });
     it("owner should be able to modify Params", async () => {
       await protocolControllerInstance.updateGlobalParams(
-        BID_PERIOD,
-        COOLDOWN_PERIOD,
-        2,
-        8,
-        3,
+        {
+          BID_PERIOD,
+          COOLDOWN_PERIOD,
+          ENTRY_FEE: 2,
+          ZONE_TAX: 8,
+          MIN_RAISE: 3,
+        },
         { from: owner }
       );
       await protocolControllerInstance.setCountryFloorPrice(
@@ -344,19 +349,20 @@ contract("Zone + Settings", (accounts) => {
       expect(settingZone.ENTRY_FEE).to.be.bignumber.equal("2");
       expect(settingZone.ZONE_TAX).to.be.bignumber.equal("8");
       expect(settingZone.MIN_RAISE).to.be.bignumber.equal("3");
-
     });
 
     it("owner should be able to modify Params and create zone", async () => {
       await protocolControllerInstance.updateGlobalParams(
-        BID_PERIOD,
-        COOLDOWN_PERIOD,
-        2,
-        8,
-        3,
+        {
+          BID_PERIOD,
+          COOLDOWN_PERIOD,
+          ENTRY_FEE: 2,
+          ZONE_TAX: 8,
+          MIN_RAISE: 3,
+        },
         { from: owner }
       );
-            // try to create a zone with 70 DTH
+      // try to create a zone with 70 DTH
       // try to create a zone with 20 DTH
       await expectRevert2(
         createZone(
@@ -387,11 +393,13 @@ contract("Zone + Settings", (accounts) => {
 
     it("owner should be able to modify BID_PERIOD, register zone and place bid", async () => {
       await protocolControllerInstance.updateGlobalParams(
-        BID_PERIOD + ONE_HOUR * 24,
-        COOLDOWN_PERIOD,
-        2,
-        8,
-        3,
+        {
+          BID_PERIOD: BID_PERIOD + ONE_HOUR * 24,
+          COOLDOWN_PERIOD,
+          ENTRY_FEE: 2,
+          ZONE_TAX: 8,
+          MIN_RAISE: 3,
+        },
         { from: owner }
       );
       const settingZone = await protocolControllerInstance.getGlobalParams();
@@ -420,11 +428,13 @@ contract("Zone + Settings", (accounts) => {
 
       // modify bid period to 36h
       await protocolControllerInstance.updateGlobalParams(
-        BID_PERIOD - ONE_HOUR * 12,
-        COOLDOWN_PERIOD,
-        4,
-        4,
-        6,
+        {
+          BID_PERIOD: BID_PERIOD - ONE_HOUR * 12,
+          COOLDOWN_PERIOD,
+          ENTRY_FEE: 4,
+          ZONE_TAX: 4,
+          MIN_RAISE: 6,
+        },
         { from: owner }
       );
 
@@ -452,16 +462,25 @@ contract("Zone + Settings", (accounts) => {
     });
 
     it("owner should be able to modify COOLDOWN_PERIOD", async () => {
+      const settingZonePre = await protocolControllerInstance.getGlobalParams();
+      console.log(
+        "settingZonePre",
+        settingZonePre[0].toString(),
+        settingZonePre[1].toString()
+      );
       await protocolControllerInstance.updateGlobalParams(
-        BID_PERIOD,
-        COOLDOWN_PERIOD + ONE_HOUR * 6,
-        4,
-        4,
-        6,
+        {
+          BID_PERIOD,
+          COOLDOWN_PERIOD: COOLDOWN_PERIOD + ONE_HOUR * 6,
+          ENTRY_FEE: 4,
+          ZONE_TAX: 4,
+          MIN_RAISE: 6,
+        },
         { from: owner }
       );
-      const settingZone = await protocolControllerInstance.getGlobalParams(
-      );
+      const settingZone = await protocolControllerInstance.getGlobalParams();
+      console.log("settingZone post", settingZone);
+
       expect(settingZone.COOLDOWN_PERIOD).to.be.bignumber.equal(
         (COOLDOWN_PERIOD + ONE_HOUR * 6).toString()
       );
@@ -483,11 +502,13 @@ contract("Zone + Settings", (accounts) => {
 
       // modify for next iteration
       await protocolControllerInstance.updateGlobalParams(
-        BID_PERIOD,
-        ONE_HOUR * 6,
-        4,
-        4,
-        6,
+        {
+          BID_PERIOD,
+          COOLDOWN_PERIOD: ONE_HOUR * 6,
+          ENTRY_FEE: 4,
+          ZONE_TAX: 4,
+          MIN_RAISE: 6,
+        },
         { from: owner }
       );
 
@@ -510,12 +531,12 @@ contract("Zone + Settings", (accounts) => {
       expect(auctionLive.highestBidder).to.be.equal(user5);
     });
 
-    it.only("can withdraw DTH", async () => {
+    it("can withdraw DTH", async () => {
       // change entry fees and verify it after auction
       const preBalance = await dthInstance.balanceOf(
         protocolControllerInstance.address
       );
-        ({ zoneInstance, tellerInstance } = await createZone(
+      ({ zoneInstance, tellerInstance } = await createZone(
         user1,
         MIN_ZONE_DTH_STAKE,
         COUNTRY_CG,
@@ -537,7 +558,7 @@ contract("Zone + Settings", (accounts) => {
       // lancer le fast forward avance dans le temp
       await timeTravel.inSecs(ONE_DAY * 365);
       await zoneInstance.processState();
-            // lacher la zone
+      // lacher la zone
       await zoneInstance.release({ from: user1 });
       // console.log('balance post', postBalance.toString());
       const postBalance = await dthInstance.balanceOf(
@@ -548,12 +569,13 @@ contract("Zone + Settings", (accounts) => {
       // do withdraw
       const balanceRecipientPre = await dthInstance.balanceOf(user5);
 
-      await protocolControllerInstance.withdrawDth(user5,postBalance,'TEST', {from: owner})
+      await protocolControllerInstance.withdrawDth(user5, postBalance, "TEST", {
+        from: owner,
+      });
       const balanceRecipientPost = await dthInstance.balanceOf(user5);
-      
+
       expect(postBalance).to.be.bignumber.equal(balanceRecipientPost);
       // console.log('balanceZeroPost', balanceZeroPost.toString())
-
     });
 
     it.skip("owner should be able to modify ENTRY FEE", async () => {
@@ -569,5 +591,5 @@ contract("Zone + Settings", (accounts) => {
   });
 });
 
-14293400462962962962
-14600000462962962962
+14293400462962962962;
+14600000462962962962;

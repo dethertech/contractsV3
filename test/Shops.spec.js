@@ -319,7 +319,7 @@ contract("Shops", (accounts) => {
           "first byte didnt match func shop"
         );
       });
-      it("[error] -- country disabled", async () => {
+      it.only("[error] -- country disabled", async () => {
         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
           from: owner,
         });
