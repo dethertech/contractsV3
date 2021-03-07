@@ -9,8 +9,7 @@ const GeoRegistry = artifacts.require("GeoRegistry");
 const ZoneFactory = artifacts.require("ZoneFactory");
 const Zone = artifacts.require("Zone");
 const Teller = artifacts.require("Teller");
-const TaxCollector = artifacts.require("TaxCollector");
-const Settings = artifacts.require("Settings");
+const ProtocolController = artifacts.require("ProtocolController");
 
 const Web3 = require("web3");
 
@@ -191,8 +190,7 @@ contract("ZoneFactory + Zone", (accounts) => {
   let zoneImplementationInstance;
   let tellerImplementationInstance;
   let certifierRegistryInstance;
-  let taxCollectorInstance;
-  let settingsInstance;
+  let protocolControllerInstance;
 
   before(async () => {
     __rootState__ = await timeTravel.saveState();
@@ -202,15 +200,13 @@ contract("ZoneFactory + Zone", (accounts) => {
   beforeEach(async () => {
     await timeTravel.revertState(__rootState__); // to go back to real time
     dthInstance = await DetherToken.new({ from: owner });
-    taxCollectorInstance = await TaxCollector.new(
-      dthInstance.address,
-      ADDRESS_BURN,
-      { from: owner }
-    );
     certifierRegistryInstance = await CertifierRegistry.new({ from: owner });
     geoInstance = await GeoRegistry.new({ from: owner });
 
-    settingsInstance = await Settings.new({ from: owner });
+    protocolControllerInstance = await ProtocolController.new(
+      dthInstance.address,
+      { from: owner }
+    );
     zoneImplementationInstance = await Zone.new({
       from: owner,
     });
@@ -228,8 +224,7 @@ contract("ZoneFactory + Zone", (accounts) => {
       usersInstance.address,
       zoneImplementationInstance.address,
       tellerImplementationInstance.address,
-      taxCollectorInstance.address,
-      settingsInstance.address,
+      protocolControllerInstance.address,
       { from: owner }
     );
     // await usersInstance.setZoneFactory(zoneFactoryInstance.address, {
@@ -2111,13 +2106,13 @@ contract("ZoneFactory + Zone", (accounts) => {
     });
   });
 
-  describe("TaxCollector", () => {
+  describe("Tax Collector", () => {
     let zoneInstance;
     let tellerInstance;
 
     it("should have a positive balance and able to withdraw", async () => {
       const preBalance = await dthInstance.balanceOf(
-        taxCollectorInstance.address
+        protocolControllerInstance.address
       );
       // console.log('balance pre', preBalance.toString());
       await enableAndLoadCountry(COUNTRY_CG);
@@ -2150,18 +2145,12 @@ contract("ZoneFactory + Zone", (accounts) => {
       await zoneInstance.release({ from: user1 });
 
       const postBalance = await dthInstance.balanceOf(
-        taxCollectorInstance.address
+        protocolControllerInstance.address
       );
       // console.log('balance post', postBalance.toString());
       expect(postBalance).to.be.bignumber.gt(preBalance);
 
       const balanceZero = await dthInstance.balanceOf(ADDRESS_BURN);
-      await taxCollectorInstance.collect({ from: user3 });
-      const postBalance2 = await dthInstance.balanceOf(
-        taxCollectorInstance.address
-      );
-      const balanceZero2 = await dthInstance.balanceOf(ADDRESS_BURN);
-      expect(balanceZero2).to.be.bignumber.gt(balanceZero);
     });
   });
 

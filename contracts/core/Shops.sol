@@ -395,7 +395,8 @@ contract Shops {
         address sender = _from;
         uint256 dthAmount = _value;
 
-        bytes1 fn = abi.decode(_data[:1], (bytes1));
+        // bytes1 fn = abi.decode(_data[:1], (bytes1));
+        bytes1 fn = _data[0];
         require(
             fn == bytes1(0x30) || fn == bytes1(0x31),
             "first byte didnt match func shop"
@@ -405,7 +406,7 @@ contract Shops {
             // shop account top up
             _topUp(sender, _value);
         } else if (fn == bytes1(0x30)) {
-            // shop creation
+            // // shop creation
             (
                 bytes2 country, 
                 bytes12 position, 

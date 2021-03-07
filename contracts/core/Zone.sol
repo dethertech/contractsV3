@@ -5,7 +5,7 @@ import "../interfaces/IDetherToken.sol";
 import "../interfaces/IZoneFactory.sol";
 import "../interfaces/IZone.sol";
 import "../interfaces/ITeller.sol";
-import "../interfaces/ISettings.sol";
+import "../interfaces/IProtocolController.sol";
 
 contract Zone is IERC223ReceivingContract {
 
@@ -62,8 +62,8 @@ contract Zone is IERC223ReceivingContract {
     IZoneFactory public zoneFactory;
     ITeller public teller;
     ZoneOwner public zoneOwner;
-    ISettings public protocolSettings;
-    address public taxCollector;
+    IProtocolController public protocolController;
+
 
     bytes2 public country;
     bytes6 public geohash;
@@ -115,13 +115,12 @@ contract Zone is IERC223ReceivingContract {
         uint256 _dthAmount,
         address _dth,
         address _zoneFactory,
-        address _taxCollector,
         address _teller,
-        address _protocolSettings
+        address _protocolController
     ) external {
         require(inited == false, "contract already initialized");
-        protocolSettings = ISettings(_protocolSettings);
-        uint256 zonePrice = protocolSettings.getZonePrice(_countryCode);
+        protocolController = IProtocolController(_protocolController);
+        uint256 zonePrice = protocolController.getCountryFloorPrice(_countryCode);
         require(
             _dthAmount >= zonePrice,
             "DTH staked are not enough for this zone"
@@ -132,7 +131,6 @@ contract Zone is IERC223ReceivingContract {
 
         dth = IDetherToken(_dth);
         zoneFactory = IZoneFactory(_zoneFactory);
-        taxCollector = _taxCollector;
 
         zoneOwner.addr = _zoneOwner;
         zoneOwner.startTime = block.timestamp;
@@ -295,8 +293,8 @@ contract Zone is IERC223ReceivingContract {
 
     function _setParams(
     ) private {
-        (uint256 zoneFloorPrice, uint256 bidPeriod, uint256 cooldownPeriod, uint256 entryFee, uint256 zoneTax, uint256 minRaise) = protocolSettings.getParams(country);
-
+        (uint256 bidPeriod, uint256 cooldownPeriod, uint256 entryFee, uint256 zoneTax, uint256 minRaise) = protocolController.getGlobalParams();
+        uint256 zoneFloorPrice = protocolController.getCountryFloorPrice(country);
         FLOOR_STAKE_PRICE = zoneFloorPrice;
         BID_PERIOD = bidPeriod;
         COOLDOWN_PERIOD = cooldownPeriod;
@@ -339,7 +337,7 @@ contract Zone is IERC223ReceivingContract {
             uint256 oldZoneOwnerBalance = zoneOwner.balance;
             _removeZoneOwner(false);
 
-            require(dth.transfer(taxCollector, oldZoneOwnerBalance));
+            require(dth.transfer(address(protocolController), oldZoneOwnerBalance));
         } else {
             // zone owner can pay due taxes
             zoneOwner.balance = zoneOwner.balance - taxAmount;
@@ -357,9 +355,9 @@ contract Zone is IERC223ReceivingContract {
                 address(dth).call(payload);
 
                 // require(dth.transfer(referrer, referralFee));
-                require(dth.transfer(taxCollector, taxAmount - referralFee));
+                require(dth.transfer(address(protocolController), taxAmount - referralFee));
             } else {
-                require(dth.transfer(taxCollector, taxAmount));
+                require(dth.transfer(address(protocolController), taxAmount));
             }
         }
     }
@@ -487,7 +485,7 @@ contract Zone is IERC223ReceivingContract {
                 );
 
                 auctionBids[currentAuctionId][_sender] = bidAmount;
-                require(dth.transfer(taxCollector, burnAmount));
+                require(dth.transfer(address(protocolController), burnAmount));
             } else {
                 // not the first bid, no entry fee
                 uint256 newUserTotalBid = auctionBids[currentAuctionId][_sender] + _dthAmount;
@@ -536,7 +534,7 @@ contract Zone is IERC223ReceivingContract {
 
         auctionBids[newAuctionId][_sender] = bidAmount;
 
-        require(dth.transfer(taxCollector, burnAmount));
+        require(dth.transfer(address(protocolController), burnAmount));
         //
         zoneFactory.fillCurrentZoneBidder(_sender);
         zoneFactory.fillCurrentZoneBidder(zoneOwner.addr);

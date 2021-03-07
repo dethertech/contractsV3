@@ -7,14 +7,14 @@ const CertifierRegistry = artifacts.require("CertifierRegistry");
 const Users = artifacts.require("Users");
 const GeoRegistry = artifacts.require("GeoRegistry");
 const Shops = artifacts.require("Shops");
-const ShopsDispute = artifacts.require("ShopsDispute");
-const AppealableArbitrator = artifacts.require("AppealableArbitrator");
-const CentralizedArbitrator = artifacts.require("CentralizedArbitrator");
+// const ShopsDispute = artifacts.require("ShopsDispute");
+// const AppealableArbitrator = artifacts.require("AppealableArbitrator");
+// const CentralizedArbitrator = artifacts.require("CentralizedArbitrator");
 const ZoneFactory = artifacts.require("ZoneFactory");
 const Zone = artifacts.require("Zone");
 const Teller = artifacts.require("Teller");
-const TaxCollector = artifacts.require("TaxCollector");
-const Settings = artifacts.require("Settings");
+// const TaxCollector = artifacts.require("TaxCollector");
+const ProtocolController = artifacts.require("ProtocolController");
 
 const Web3 = require("web3");
 const truffleAssert = require("truffle-assertions");
@@ -131,13 +131,13 @@ contract("Shops", (accounts) => {
   let geoInstance;
   let shopsInstance;
   let shopsDisputeInstance;
-  let appealableArbitratorInstance;
-  let centralizedArbitratorInstance;
+  // let appealableArbitratorInstance;
+  // let centralizedArbitratorInstance;
   let certifierRegistryInstance;
   let zoneImplementationInstance;
   let tellerImplementationInstance;
-  let taxCollectorInstance;
-  let settingsInstance;
+  // let taxCollectorInstance;
+  let protocolControllerInstance;
 
   before(async () => {
     __rootState__ = await timeTravel.saveState();
@@ -147,14 +147,17 @@ contract("Shops", (accounts) => {
   beforeEach(async () => {
     await timeTravel.revertState(__rootState__); // to go back to real time
     dthInstance = await DetherToken.new({ from: owner });
-    taxCollectorInstance = await TaxCollector.new(
-      dthInstance.address,
-      ADDRESS_ZERO,
-      { from: owner }
-    );
+    // taxCollectorInstance = await TaxCollector.new(
+    //   dthInstance.address,
+    //   ADDRESS_ZERO,
+    //   { from: owner }
+    // );
 
     certifierRegistryInstance = await CertifierRegistry.new({ from: owner });
-    settingsInstance = await Settings.new({ from: owner });
+    protocolControllerInstance = await ProtocolController.new(
+      dthInstance.address,
+      { from: owner }
+    );
     zoneImplementationInstance = await Zone.new({ from: owner });
     tellerImplementationInstance = await Teller.new({ from: owner });
 
@@ -166,31 +169,31 @@ contract("Shops", (accounts) => {
       { from: owner }
     );
 
-    centralizedArbitratorInstance = await CentralizedArbitrator.new(
-      ethToWei(KLEROS_ARBITRATION_PRICE),
-      { from: owner }
-    );
+    // centralizedArbitratorInstance = await CentralizedArbitrator.new(
+    //   ethToWei(KLEROS_ARBITRATION_PRICE),
+    //   { from: owner }
+    // );
 
-    appealableArbitratorInstance = await AppealableArbitrator.new(
-      ethToWei(KLEROS_ARBITRATION_PRICE),
-      centralizedArbitratorInstance.address,
-      KLEROS_ARBITRATOR_EXTRADATA,
-      KLEROS_DISPUTE_TIMEOUT,
-      { from: owner }
-    );
+    // appealableArbitratorInstance = await AppealableArbitrator.new(
+    //   ethToWei(KLEROS_ARBITRATION_PRICE),
+    //   centralizedArbitratorInstance.address,
+    //   KLEROS_ARBITRATOR_EXTRADATA,
+    //   KLEROS_DISPUTE_TIMEOUT,
+    //   { from: owner }
+    // );
 
-    await appealableArbitratorInstance.changeArbitrator(
-      appealableArbitratorInstance.address,
-      { from: owner }
-    );
+    // await appealableArbitratorInstance.changeArbitrator(
+    //   appealableArbitratorInstance.address,
+    //   { from: owner }
+    // );
     zoneFactoryInstance = await ZoneFactory.new(
       dthInstance.address,
       geoInstance.address,
       usersInstance.address,
       zoneImplementationInstance.address,
       tellerImplementationInstance.address,
-      taxCollectorInstance.address,
-      settingsInstance.address,
+      // taxCollectorInstance.address,
+      protocolControllerInstance.address,
       { from: owner }
     );
 
@@ -316,7 +319,7 @@ contract("Shops", (accounts) => {
           "first byte didnt match func shop"
         );
       });
-      it("[error] -- country disabled", async () => {
+      it.only("[error] -- country disabled", async () => {
         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
           from: owner,
         });
