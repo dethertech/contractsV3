@@ -1,4 +1,5 @@
-pragma solidity ^0.8.1;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.3;
 
 abstract contract IZone {
     function dth() public virtual view returns (address);
@@ -58,7 +59,7 @@ abstract contract IZone {
 
     function auctionExists(uint256 _auctionId) external virtual view returns (bool);
 
-    function getZoneOwner()
+    function zoneOwner()
         external 
         virtual
         view

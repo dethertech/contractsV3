@@ -1,4 +1,5 @@
-pragma solidity ^0.8.1;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.3;
 
 abstract contract IExchangeRateOracle {
     function WAD() external virtual view returns (uint256);

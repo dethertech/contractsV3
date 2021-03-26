@@ -1,4 +1,5 @@
-pragma solidity ^0.8.1;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.3;
 
 import "../interfaces/IDetherToken.sol";
 import "../interfaces/IUsers.sol";
@@ -336,7 +337,7 @@ contract Shops {
         uint256 _startTime,
         uint256 _endTime,
         uint256 _licencePrice
-    ) public view returns (uint256 taxAmount) {
+    ) public pure returns (uint256 taxAmount) {
         taxAmount = _licencePrice * (_endTime - _startTime) / TAX / 1 days;
     }
 

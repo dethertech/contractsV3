@@ -4,6 +4,9 @@ const CertifierRegistry = artifacts.require("CertifierRegistry");
 const Users = artifacts.require("Users.sol");
 const GeoRegistry = artifacts.require("GeoRegistry.sol");
 const ZoneFactory = artifacts.require("ZoneFactory.sol");
+const FeeTaxHelpers = artifacts.require("FeeTaxHelpers.sol");
+const ZoneOwnerUtils = artifacts.require("ZoneOwnerUtils.sol");
+const AuctionUtils = artifacts.require("AuctionUtils.sol");
 const Zone = artifacts.require("Zone.sol");
 const Teller = artifacts.require("Teller.sol");
 const Shops = artifacts.require("Shops.sol");
@@ -58,6 +61,16 @@ module.exports = async (deployer, network) => {
 
   await deployer.deploy(ProtocolController, dth.address);
   const protocolController = await ProtocolController.deployed();
+
+  await deployer.deploy(FeeTaxHelpers);
+  //const feeTaxHelper = await FeeTaxHelpers.deployed();
+  deployer.link(FeeTaxHelpers, [ZoneOwnerUtils, AuctionUtils, Zone]);
+  await deployer.deploy(AuctionUtils);
+  //const auctionUtils = await AuctionUtils.deployed();
+  deployer.link(AuctionUtils, Zone);
+  await deployer.deploy(ZoneOwnerUtils);
+  //const zoneownerUtils = await ZoneOwnerUtils.deployed();
+  deployer.link(ZoneOwnerUtils, Zone);
 
   await deployer.deploy(Zone);
   const zoneImplementation = await Zone.deployed();
