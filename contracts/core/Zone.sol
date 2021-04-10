@@ -10,6 +10,7 @@ import "../interfaces/IProtocolController.sol";
 import "./AuctionUtils.sol";
 import "./FeeTaxHelpers.sol";
 import "./ZoneOwnerUtils.sol";
+import "../libraries/SharedStructs.sol";
 
 contract Zone is IERC223ReceivingContract {
 
@@ -18,7 +19,7 @@ contract Zone is IERC223ReceivingContract {
     using FeeTaxHelpers for uint256;
 
     AuctionUtils.AuctionDetails auctions;
-    
+
     // ------------------------------------------------
     //
     // Variables Public
@@ -119,11 +120,11 @@ contract Zone is IERC223ReceivingContract {
         uint256 auctionId
     ) {
         return (
-            zoneOwner.addr, 
-            zoneOwner.startTime, 
-            zoneOwner.staked, 
-            zoneOwner.balance, 
-            zoneOwner.lastTaxTime, 
+            zoneOwner.addr,
+            zoneOwner.startTime,
+            zoneOwner.staked,
+            zoneOwner.balance,
+            zoneOwner.lastTaxTime,
             zoneOwner.auctionId
         );
     }
@@ -173,8 +174,19 @@ contract Zone is IERC223ReceivingContract {
 
     function _setParams(
     ) private {
+<<<<<<< HEAD
         zoneParams = protocolController.getGlobalParams();
         FLOOR_STAKE_PRICE = protocolController.getCountryFloorPrice(country);
+=======
+        SharedStructs.Params_t memory globalParams = protocolController.getGlobalParams();
+        uint256 zoneFloorPrice = protocolController.getCountryFloorPrice(country);
+        FLOOR_STAKE_PRICE = zoneFloorPrice;
+        BID_PERIOD = globalParams.bidPeriod;
+        COOLDOWN_PERIOD = globalParams.cooldownPeriod;
+        ENTRY_FEE = globalParams.entryFee;
+        ZONE_TAX = globalParams.zoneTax;
+        MIN_RAISE = globalParams.minRaise;
+>>>>>>> initial voting code
     }
 
     function _removeZoneOwner(bool fromRelease) private {
@@ -259,7 +271,7 @@ contract Zone is IERC223ReceivingContract {
                 zoneOwner.addr,
                 address(this)
             );
-            
+
             zoneOwnerPtr.init(lastAuction.highestBidder, lastAuction.endTime, highestBid, auctions.currentAuctionId);
         }
 
@@ -308,12 +320,12 @@ contract Zone is IERC223ReceivingContract {
             auctions.auctionIdToAuction[auctions.currentAuctionId].state == uint256(AuctionUtils.AuctionState.Started)
         ) {
             auctions.joinAuction(
-                _sender, 
-                _dthAmount, 
-                geohash, 
-                zoneOwner.addr, 
-                zoneOwner.staked, 
-                protocolController, 
+                _sender,
+                _dthAmount,
+                geohash,
+                zoneOwner.addr,
+                zoneOwner.staked,
+                protocolController,
                 zoneParams,
                 zoneFactory
             );
@@ -335,12 +347,12 @@ contract Zone is IERC223ReceivingContract {
             }
 
             auctions.createAuction(
-                _sender, 
-                _dthAmount, 
-                geohash, 
-                zoneOwner.addr, 
-                zoneOwner.staked, 
-                protocolController, 
+                _sender,
+                _dthAmount,
+                geohash,
+                zoneOwner.addr,
+                zoneOwner.staked,
+                protocolController,
                 zoneParams,
                 zoneFactory
             );

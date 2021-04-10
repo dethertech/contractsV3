@@ -11,7 +11,8 @@
     "test-zone": "truffle test test/ZoneFactory-Zone.spec.js",
     "test-shop": "truffle test test/Shops.spec.js",
     "migrate": "truffle migrate",
-    "ganache": "ganache-cli --gasLimit 15000000 --allowUnlimitedContractSize"
+    "ganache": "ganache-cli --gasLimit 15000000 --allowUnlimitedContractSize",
+    "compile": "npx truffle compile"
   },
   "author": "",
   "license": "ISC",
