@@ -1472,18 +1472,14 @@ contract("ZoneFactory + Zone", (accounts) => {
             const zoneOwnerAfter = zoneOwnerToObj(
               await zoneInstance.getZoneOwner()
             );
-            // console.log('zoneOwnerAfter', zoneOwnerAfter)
             const bidMinusEntryFee = (
               await taxFeeHelperInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 76), 4)
             ).bidAmount;
-            // console.log('bidMinusEntryFee', bidMinusEntryFee)
             expect(zoneOwnerAfter.staked).to.be.bignumber.equal(
               bidMinusEntryFee
             );
             const lastAuctionEndTime = zoneOwnerAfter.startTime; // we just added a zoneowner, his startTime will be that first auctions endTime
-            // console.log('lastAuctionEndTime', lastAuctionEndTime)
             const lastBlockTimestamp = await getLastBlockTimestamp();
-            // console.log('lastBlockTimestamp', lastBlockTimestamp)
             const zoneParams = await zoneInstance.zoneParams()
             const harbTaxes = await taxFeeHelperInstance.calcHarbergerTax(
                 bidMinusEntryFee,
