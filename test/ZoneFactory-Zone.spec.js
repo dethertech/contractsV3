@@ -13,7 +13,7 @@ const ProtocolController = artifacts.require("ProtocolController");
 const FeeTaxHelpers = artifacts.require("FeeTaxHelpers");
 
 const Web3 = require("web3");
-
+const BN = Web3.utils.BN;
 const expect = require("./utils/chai");
 const TimeTravel = require("./utils/timeTravel");
 const { addCountry } = require("./utils/geo");
@@ -1468,26 +1468,39 @@ contract("ZoneFactory + Zone", (accounts) => {
             );
             expect(zoneOwnerAfter.addr).to.equal(user3);
           });
-          it("zoneOwner stake + balance should be updated to winning bid minus entry fee (minus taxes)", async () => {
+          it.only("zoneOwner stake + balance should be updated to winning bid minus entry fee (minus taxes)", async () => {
             const zoneOwnerAfter = zoneOwnerToObj(
               await zoneInstance.getZoneOwner()
             );
+            // console.log('zoneOwnerAfter', zoneOwnerAfter)
             const bidMinusEntryFee = (
               await taxFeeHelperInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 76), 4)
             ).bidAmount;
+            // console.log('bidMinusEntryFee', bidMinusEntryFee)
             expect(zoneOwnerAfter.staked).to.be.bignumber.equal(
               bidMinusEntryFee
             );
             const lastAuctionEndTime = zoneOwnerAfter.startTime; // we just added a zoneowner, his startTime will be that first auctions endTime
+            // console.log('lastAuctionEndTime', lastAuctionEndTime)
             const lastBlockTimestamp = await getLastBlockTimestamp();
-            const bidMinusTaxesPaid = (
-              await taxFeeHelperInstance.calcHarbergerTax(
+            // console.log('lastBlockTimestamp', lastBlockTimestamp)
+            const zoneParams = await zoneInstance.zoneParams()
+            const harbTaxes = await taxFeeHelperInstance.calcHarbergerTax(
+                bidMinusEntryFee,
                 lastAuctionEndTime,
                 lastBlockTimestamp,
-                bidMinusEntryFee,
-                4
+                zoneParams.ZONE_TAX
               )
-            ).keepAmount;
+            const bidMinusTaxesPaid = BN(bidMinusEntryFee).sub(harbTaxes)
+            // const bidMinusTaxesPaid = (
+            //   await taxFeeHelperInstance.calcHarbergerTax(
+            //     lastAuctionEndTime,
+            //     lastBlockTimestamp,
+            //     bidMinusEntryFee,
+            //     4
+            //   )
+            // ).keepAmount;
+
             expect(zoneOwnerAfter.balance).to.be.bignumber.equal(
               bidMinusTaxesPaid
             );
