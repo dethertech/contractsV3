@@ -1468,7 +1468,7 @@ contract("ZoneFactory + Zone", (accounts) => {
             );
             expect(zoneOwnerAfter.addr).to.equal(user3);
           });
-          it.only("zoneOwner stake + balance should be updated to winning bid minus entry fee (minus taxes)", async () => {
+          it("zoneOwner stake + balance should be updated to winning bid minus entry fee (minus taxes)", async () => {
             const zoneOwnerAfter = zoneOwnerToObj(
               await zoneInstance.getZoneOwner()
             );
@@ -2196,50 +2196,49 @@ contract("ZoneFactory + Zone", (accounts) => {
       describe("Zone.calcHarbergerTax(uint _startTime, uint _endTime, uint _dthAmount, uint _zoneTax)", () => {
         it("[tax 1 hour] stake 100 dth ", async () => {
           const res = await taxFeeHelperInstance.calcHarbergerTax(
+            ethToWei(100),
             0,
             ONE_HOUR,
-            ethToWei(100),
             "4" // zone_tax
           );
-          expect(res.taxAmount).to.be.bignumber.equal("1666666666666666");
-          expect(res.keepAmount).to.be.bignumber.equal("99998333333333333334");
+                    expect(res).to.be.bignumber.equal("1666666666666666");
         });
         it("[tax 1 day] stake 100 dth ", async () => {
           const res = await taxFeeHelperInstance.calcHarbergerTax(
+            ethToWei(100),
             0,
             ONE_DAY,
-            ethToWei(100),
             "4" // zone_tax
           );
-          expect(res.taxAmount).to.be.bignumber.equal("40000000000000000");
-          expect(res.keepAmount).to.be.bignumber.equal("99960000000000000000");
+          expect(res).to.be.bignumber.equal("40000000000000000");
+          // expect(res.keepAmount).to.be.bignumber.equal("99960000000000000000");
         });
         it("returns correct result for 101 dth", async () => {
           const res = await taxFeeHelperInstance.calcHarbergerTax(
+            ethToWei(101),
             0,
             ONE_DAY,
-            ethToWei(101),
             "4" // zone_tax
           );
-          expect(res.taxAmount).to.be.bignumber.equal("40400000000000000");
-          expect(res.keepAmount).to.be.bignumber.equal("100959600000000000000");
+          expect(res).to.be.bignumber.equal("40400000000000000");
+          // expect(res.keepAmount).to.be.bignumber.equal("100959600000000000000");
         });
         it("returns correct result 15 second tax time", async () => {
-          const res = await taxFeeHelperInstance.calcHarbergerTax(0, 15, ethToWei(100), 4);
+          const res = await taxFeeHelperInstance.calcHarbergerTax(ethToWei(100),0, 15, 4);
 
-          expect(res.taxAmount).to.be.bignumber.equal("6944444444444");
-          expect(res.keepAmount).to.be.bignumber.equal("99999993055555555556");
+          expect(res).to.be.bignumber.equal("6944444444444");
+          // expect(res.keepAmount).to.be.bignumber.equal("99999993055555555556");
         });
         it("returns correct result 1 year tax time", async () => {
           const res = await taxFeeHelperInstance.calcHarbergerTax(
+            ethToWei(100),
             0,
             ONE_DAY * 365,
-            ethToWei(100),
             "4" // zone_tax
           );
 
-          expect(res.taxAmount).to.be.bignumber.equal("14600000000000000000");
-          expect(res.keepAmount).to.be.bignumber.equal("85400000000000000000");
+          expect(res).to.be.bignumber.equal("14600000000000000000");
+          // expect(res.keepAmount).to.be.bignumber.equal("85400000000000000000");
         });
       });
     });
