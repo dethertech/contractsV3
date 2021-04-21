@@ -319,7 +319,7 @@ contract("Shops", (accounts) => {
           "first byte didnt match func shop"
         );
       });
-      it.only("[error] -- country disabled", async () => {
+      it("[error] -- country disabled", async () => {
         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
           from: owner,
         });
@@ -835,34 +835,33 @@ contract("Shops", (accounts) => {
         const shop5 = await shopsInstance.getShopByAddr(user5);
         const timeNow = (await web3.eth.getBlock("latest")).timestamp;
         let taxShop1 = await calcShopTax(
-          shop1[8],
+          shop1[6],
           timeNow,
-          shop1[9],
+          shop1[7],
           taxRates,
           shop1[5]
         );
         let taxShop3 = await calcShopTax(
-          shop3[8],
+          shop3[6],
           timeNow,
-          shop3[9],
+          shop3[7],
           taxRates,
           shop3[5]
         );
         let taxShop4 = await calcShopTax(
-          shop4[8],
+          shop4[6],
           timeNow,
-          shop4[9],
+          shop4[7],
           taxRates,
           shop4[5]
         );
         let taxShop5 = await calcShopTax(
-          shop5[8],
+          shop5[6],
           timeNow,
-          shop5[9],
+          shop5[7],
           taxRates,
           shop5[5]
         );
-
         const totalTaxShop = new BN(taxShop1)
           .plus(taxShop3)
           .plus(taxShop4)
@@ -988,35 +987,35 @@ contract("Shops", (accounts) => {
         const timeNow = (await web3.eth.getBlock("latest")).timestamp;
         const shop1 = await shopsInstance.getShopByAddr(user1);
         let taxShop1 = await calcShopTax(
-          shop1[8],
+          shop1[6],
           timeNow,
-          shop1[9],
+          shop1[7],
           taxRates,
           shop1[5]
         );
         const shop3 = await shopsInstance.getShopByAddr(user3);
         let taxShop3 = await calcShopTax(
-          shop3[8],
+          shop3[6],
           timeNow,
-          shop3[9],
+          shop3[7],
           taxRates,
           shop3[5]
         );
 
         const shop4 = await shopsInstance.getShopByAddr(user4);
         let taxShop4 = await calcShopTax(
-          shop4[8],
+          shop4[6],
           timeNow,
-          shop4[9],
+          shop4[7],
           taxRates,
           shop4[5]
         );
 
         const shop5 = await shopsInstance.getShopByAddr(user5);
         let taxShop5 = await calcShopTax(
-          shop5[8],
+          shop5[6],
           timeNow,
-          shop5[9],
+          shop5[7],
           taxRates,
           shop5[5]
         );
@@ -1026,7 +1025,6 @@ contract("Shops", (accounts) => {
           .plus(taxShop4)
           .plus(taxShop5);
         // const calcShopTax = async (start, end, licencePrice, taxRates, staked) => {
-
         // collect taxes
         const taxSendToOwner = await shopsInstance.collectTax(
           asciiToHex(VALID_CG_ZONE_GEOHASH),
@@ -1034,7 +1032,6 @@ contract("Shops", (accounts) => {
           listOfShop.length,
           { from: user2 }
         );
-
         truffleAssert.eventEmitted(taxSendToOwner, "TaxTotalPaidTo", (ev) => {
           const amount = new BN(ev.amount);
           const dest = ev.address;
