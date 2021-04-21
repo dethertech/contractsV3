@@ -1,38 +1,27 @@
-pragma solidity ^0.8.1;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.3;
 pragma experimental ABIEncoderV2;
 
 import "openzeppelin-solidity/contracts/access/Ownable.sol";
 
 import "../interfaces/IERC223ReceivingContract.sol";
 import "../interfaces/IDetherToken.sol";
+import "../interfaces/IProtocolController.sol";
 // This contracts will be change to an aragon DAO
 
 // TODO:
 // add events
-contract ProtocolController is IERC223ReceivingContract, Ownable {
-
-    // ------------------------------------------------
-    //
-    // Structs
-    //
-    // ------------------------------------------------
-    struct Params_t {
-        uint256 BID_PERIOD;             // Time during everyon can bid, when an auction is opened
-        uint256 COOLDOWN_PERIOD;        // Time when no auction can be opened after an auction end
-        uint256 ENTRY_FEE;              // Amount needed to be paid when starting an auction
-        uint256 ZONE_TAX;               // Amount of taxes raised
-        uint256 MIN_RAISE;
-    }
+contract ProtocolController is IERC223ReceivingContract, Ownable, IProtocolController {
 
     // ------------------------------------------------
     //
     // Variables Public
     //
     // ------------------------------------------------
-    IDetherToken public dth;
+    IDetherToken public override dth;
     uint256 public dthBalance;
     mapping (bytes2 => uint256 ) floorStakesPrices;
-    Params_t public globalParams = Params_t({
+    Params_t globalParams = Params_t({
         // FLOOR_STAKE_PRICE : 100 ether,
         BID_PERIOD : 48 hours,
         COOLDOWN_PERIOD : 24 hours,
@@ -67,21 +56,20 @@ contract ProtocolController is IERC223ReceivingContract, Ownable {
     //
     // ------------------------------------------------
 
- function getGlobalParams() public view returns(
-    Params_t memory params
-) {
-    return globalParams;
-}
-
-function getCountryFloorPrice(bytes2 zoneCountry) public view returns(
-    uint256 countryFloorPrice
-) {
-    if (floorStakesPrices[zoneCountry] > 0 ) {
-        return floorStakesPrices[zoneCountry];
-    } else {
-        return 100 ether;
+    function getGlobalParams () public override view returns(Params_t memory)
+    {
+        return globalParams;
     }
-}
+
+    function getCountryFloorPrice(bytes2 zoneCountry) override public view returns(
+        uint256 countryFloorPrice
+    ) {
+        if (floorStakesPrices[zoneCountry] > 0 ) {
+            return floorStakesPrices[zoneCountry];
+        } else {
+            return 100 ether;
+        }
+    }
 
     function setCountryFloorPrice (
         bytes2 zoneCountry,

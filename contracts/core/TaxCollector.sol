@@ -1,4 +1,5 @@
-pragma solidity ^0.8.1;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.3;
 
 import "openzeppelin-solidity/contracts/access/Ownable.sol";
 
@@ -39,7 +40,7 @@ contract TaxCollector is IERC223ReceivingContract, Ownable {
     function tokenFallback(
         address _from,
         uint256 _value,
-        bytes memory _data
+        bytes memory
     ) public override {
         emit ReceivedTaxes(msg.sender, _value, _from);
     }

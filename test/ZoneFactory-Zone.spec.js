@@ -10,9 +10,10 @@ const ZoneFactory = artifacts.require("ZoneFactory");
 const Zone = artifacts.require("Zone");
 const Teller = artifacts.require("Teller");
 const ProtocolController = artifacts.require("ProtocolController");
+const FeeTaxHelpers = artifacts.require("FeeTaxHelpers");
 
 const Web3 = require("web3");
-
+const BN = Web3.utils.BN;
 const expect = require("./utils/chai");
 const TimeTravel = require("./utils/timeTravel");
 const { addCountry } = require("./utils/geo");
@@ -191,6 +192,7 @@ contract("ZoneFactory + Zone", (accounts) => {
   let tellerImplementationInstance;
   let certifierRegistryInstance;
   let protocolControllerInstance;
+  let taxFeeHelperInstance;
 
   before(async () => {
     __rootState__ = await timeTravel.saveState();
@@ -203,6 +205,7 @@ contract("ZoneFactory + Zone", (accounts) => {
     certifierRegistryInstance = await CertifierRegistry.new({ from: owner });
     geoInstance = await GeoRegistry.new({ from: owner });
 
+    taxFeeHelperInstance = await FeeTaxHelpers.new();
     protocolControllerInstance = await ProtocolController.new(
       dthInstance.address,
       { from: owner }
@@ -631,11 +634,12 @@ contract("ZoneFactory + Zone", (accounts) => {
           );
           expect(lastAuction.highestBidder).to.equal(user2);
           const bidMinusEntryFee = (
-            await zoneInstance.calcEntryFee(ethToWei(bidAmount))
+            await taxFeeHelperInstance.calcEntryFee(ethToWei(bidAmount), 4)
           ).bidAmount;
           expect(lastAuction.highestBid).to.be.bignumber.equal(
             bidMinusEntryFee
           );
+
           // ref should be paid
           // TO DO ADD MORE TEST
           const newRefDthBalance = await dthInstance.balanceOf(user5);
@@ -1469,20 +1473,30 @@ contract("ZoneFactory + Zone", (accounts) => {
               await zoneInstance.getZoneOwner()
             );
             const bidMinusEntryFee = (
-              await zoneInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 76))
+              await taxFeeHelperInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 76), 4)
             ).bidAmount;
             expect(zoneOwnerAfter.staked).to.be.bignumber.equal(
               bidMinusEntryFee
             );
             const lastAuctionEndTime = zoneOwnerAfter.startTime; // we just added a zoneowner, his startTime will be that first auctions endTime
             const lastBlockTimestamp = await getLastBlockTimestamp();
-            const bidMinusTaxesPaid = (
-              await zoneInstance.calcHarbergerTax(
+            const zoneParams = await zoneInstance.zoneParams()
+            const harbTaxes = await taxFeeHelperInstance.calcHarbergerTax(
+                bidMinusEntryFee,
                 lastAuctionEndTime,
                 lastBlockTimestamp,
-                bidMinusEntryFee
+                zoneParams.ZONE_TAX
               )
-            ).keepAmount;
+            const bidMinusTaxesPaid = BN(bidMinusEntryFee).sub(harbTaxes)
+            // const bidMinusTaxesPaid = (
+            //   await taxFeeHelperInstance.calcHarbergerTax(
+            //     lastAuctionEndTime,
+            //     lastBlockTimestamp,
+            //     bidMinusEntryFee,
+            //     4
+            //   )
+            // ).keepAmount;
+
             expect(zoneOwnerAfter.balance).to.be.bignumber.equal(
               bidMinusTaxesPaid
             );
@@ -1552,15 +1566,15 @@ contract("ZoneFactory + Zone", (accounts) => {
           // await zoneInstance.withdrawDth({ from: user4 });
 
           // TOD CALC THE GOOD AMOUNT
-          const user2bid1MinusEntryFee1 = (
-            await zoneInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 10))
+          /* const user2bid1MinusEntryFee1 = (
+            await taxFeeHelperInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 10), 4)
           ).bidAmount;
           const user2bid1MinusEntryFee2 = (
-            await zoneInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 60))
+            await taxFeeHelperInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 60), 4)
           ).bidAmount;
           const user2bid1MinusEntryFee3 = (
-            await zoneInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 100))
-          ).bidAmount;
+            await taxFeeHelperInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 100), 4)
+          ).bidAmount;*/
 
           // // expect time
 
@@ -1599,12 +1613,12 @@ contract("ZoneFactory + Zone", (accounts) => {
           // expect(zoneOwner.lastTaxTime).to.be.bignumber.equal(
           //   str(lastBlockTimestamp)
           // );
-          // const bidMinusEntryFeeUser3 = (await zoneInstance.calcEntryFee(
+          // const bidMinusEntryFeeUser3 = (await taxFeeHelperInstance.calcEntryFee(
           //   ethToWei(MIN_ZONE_DTH_STAKE + 140)
           // )).bidAmount;
           // expect(zoneOwner.staked).to.be.bignumber.equal(bidMinusEntryFeeUser3);
           // const lastAuctionEndTime = lastAuctionBlockTimestamp + BID_PERIOD;
-          // const bidMinusTaxesPaid = (await zoneInstance.calcHarbergerTax(
+          // const bidMinusTaxesPaid = (await taxFeeHelperInstance.calcHarbergerTax(
           //   lastAuctionEndTime,
           //   lastBlockTimestamp,
           //   bidMinusEntryFeeUser3
@@ -2169,59 +2183,62 @@ contract("ZoneFactory + Zone", (accounts) => {
       });
       describe("Zone.calcEntryFee(uint _bid)", () => {
         it("returns correct result for 100 dth", async () => {
-          const res = await zoneInstance.calcEntryFee(ethToWei(100));
+          const res = await taxFeeHelperInstance.calcEntryFee(ethToWei(100), 4);
           expect(res.burnAmount).to.be.bignumber.equal(ethToWei(4)); // entry fee now 4%
           expect(res.bidAmount).to.be.bignumber.equal(ethToWei(96));
         });
         it("returns correct result for 101 dth", async () => {
-          const res = await zoneInstance.calcEntryFee(ethToWei(101));
+          const res = await taxFeeHelperInstance.calcEntryFee(ethToWei(101), 4);
           expect(res.burnAmount).to.be.bignumber.equal(ethToWei(4.04));
           expect(res.bidAmount).to.be.bignumber.equal(ethToWei(96.96));
         });
       });
-      describe("Zone.calcHarbergerTax(uint _startTime, uint _endTime, uint _dthAmount)", () => {
+      describe("Zone.calcHarbergerTax(uint _startTime, uint _endTime, uint _dthAmount, uint _zoneTax)", () => {
         it("[tax 1 hour] stake 100 dth ", async () => {
-          const res = await zoneInstance.calcHarbergerTax(
+          const res = await taxFeeHelperInstance.calcHarbergerTax(
+            ethToWei(100),
             0,
             ONE_HOUR,
-            ethToWei(100)
+            "4" // zone_tax
           );
-          expect(res.taxAmount).to.be.bignumber.equal("1666666666666666");
-          expect(res.keepAmount).to.be.bignumber.equal("99998333333333333334");
+                    expect(res).to.be.bignumber.equal("1666666666666666");
         });
         it("[tax 1 day] stake 100 dth ", async () => {
-          const res = await zoneInstance.calcHarbergerTax(
+          const res = await taxFeeHelperInstance.calcHarbergerTax(
+            ethToWei(100),
             0,
             ONE_DAY,
-            ethToWei(100)
+            "4" // zone_tax
           );
-          expect(res.taxAmount).to.be.bignumber.equal("40000000000000000");
-          expect(res.keepAmount).to.be.bignumber.equal("99960000000000000000");
+          expect(res).to.be.bignumber.equal("40000000000000000");
+          // expect(res.keepAmount).to.be.bignumber.equal("99960000000000000000");
         });
         it("returns correct result for 101 dth", async () => {
-          const res = await zoneInstance.calcHarbergerTax(
+          const res = await taxFeeHelperInstance.calcHarbergerTax(
+            ethToWei(101),
             0,
             ONE_DAY,
-            ethToWei(101)
+            "4" // zone_tax
           );
-          expect(res.taxAmount).to.be.bignumber.equal("40400000000000000");
-          expect(res.keepAmount).to.be.bignumber.equal("100959600000000000000");
+          expect(res).to.be.bignumber.equal("40400000000000000");
+          // expect(res.keepAmount).to.be.bignumber.equal("100959600000000000000");
         });
         it("returns correct result 15 second tax time", async () => {
-          const res = await zoneInstance.calcHarbergerTax(0, 15, ethToWei(100));
+          const res = await taxFeeHelperInstance.calcHarbergerTax(ethToWei(100),0, 15, 4);
 
-          expect(res.taxAmount).to.be.bignumber.equal("6944444444444");
-          expect(res.keepAmount).to.be.bignumber.equal("99999993055555555556");
+          expect(res).to.be.bignumber.equal("6944444444444");
+          // expect(res.keepAmount).to.be.bignumber.equal("99999993055555555556");
         });
         it("returns correct result 1 year tax time", async () => {
-          const res = await zoneInstance.calcHarbergerTax(
+          const res = await taxFeeHelperInstance.calcHarbergerTax(
+            ethToWei(100),
             0,
             ONE_DAY * 365,
-            ethToWei(100)
+            "4" // zone_tax
           );
 
-          expect(res.taxAmount).to.be.bignumber.equal("14600000000000000000");
-          expect(res.keepAmount).to.be.bignumber.equal("85400000000000000000");
+          expect(res).to.be.bignumber.equal("14600000000000000000");
+          // expect(res.keepAmount).to.be.bignumber.equal("85400000000000000000");
         });
       });
     });
