@@ -54,7 +54,7 @@ const encodeProposalArgs = (kind, args) => {
   }
 };
 
-contract.only("ProtocolController + Voting + DthWrapper", (accounts) => {
+contract("ProtocolController + Voting + DthWrapper", (accounts) => {
   let owner;
   let user1;
   let user2;

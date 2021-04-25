@@ -26,7 +26,7 @@ library AuctionUtils {
 
     /// @notice get a specific auction
     function getAuction(
-        AuctionDetails storage _auctionDetailsPtr, 
+        AuctionDetails storage _auctionDetailsPtr,
         uint256 _auctionId,
         address _zoneOwner,
         uint256 _staked
@@ -72,10 +72,10 @@ library AuctionUtils {
             "sender own already a zone"
         );
 
-        (uint256 burnAmount, uint256 bidAmount) = _dthAmount.calcEntryFee(_params.ENTRY_FEE);
+        (uint256 burnAmount, uint256 bidAmount) = _dthAmount.calcEntryFee(_params.entryFee);
         require(
             bidAmount >
-            _staked + _staked * _params.MIN_RAISE / 100,
+            _staked + _staked * _params.minRaise / 100,
             "bid is lower than current zone stake"
         );
 
@@ -83,7 +83,7 @@ library AuctionUtils {
         _auctionDetailsPtr.auctionIdToAuction[_auctionDetailsPtr.currentAuctionId] = Auction({
             state: uint256(AuctionState.Started),
             startTime: block.timestamp,
-            endTime: block.timestamp + _params.BID_PERIOD,
+            endTime: block.timestamp + _params.bidPeriod,
             highestBidder: _sender // caller (challenger)
         });
         _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][_sender] = bidAmount;
@@ -140,8 +140,8 @@ library AuctionUtils {
             // the current zone owner's stake also counts in his bid
             require(
                 _staked + dthAddedBidsAmount >=
-                currentHighestBid + currentHighestBid * _params.MIN_RAISE / 100,
-                "bid + already staked is less than current highest + MIN_RAISE"
+                currentHighestBid + currentHighestBid * _params.minRaise / 100,
+                "bid + already staked is less than current highest + minRaise"
             );
 
             _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][_sender] = dthAddedBidsAmount;
@@ -149,12 +149,12 @@ library AuctionUtils {
             // _sender is not the current zone owner
             if (_auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][_sender] == 0) {
                 // this is the first bid of this challenger, deduct entry fee
-                (uint256 burnAmount, uint256 bidAmount) = _dthAmount.calcEntryFee(_params.ENTRY_FEE);
+                (uint256 burnAmount, uint256 bidAmount) = _dthAmount.calcEntryFee(_params.entryFee);
 
                 require(
                     bidAmount >=
-                    currentHighestBid + currentHighestBid * _params.MIN_RAISE / 100,
-                    "bid is less than current highest + MIN_RAISE"
+                    currentHighestBid + currentHighestBid * _params.minRaise / 100,
+                    "bid is less than current highest + minRaise"
                 );
 
                 _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][_sender] = bidAmount;
@@ -164,8 +164,8 @@ library AuctionUtils {
                 uint256 newUserTotalBid = _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][_sender] + _dthAmount;
                 require(
                     newUserTotalBid >=
-                    currentHighestBid + currentHighestBid * _params.MIN_RAISE / 100,
-                    "bid is less than current highest + MIN_RAISE"
+                    currentHighestBid + currentHighestBid * _params.minRaise / 100,
+                    "bid is less than current highest + minRaise"
                 );
 
                 _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][_sender] = newUserTotalBid;

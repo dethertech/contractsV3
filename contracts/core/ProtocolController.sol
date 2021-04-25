@@ -14,19 +14,19 @@ import "../interfaces/IGeoRegistry.sol";
 contract ProtocolController is IProtocolController, IERC223ReceivingContract {
 
     // for updating global params
-    uint256 constant public MIN_BID_PERIOD = 1 hours;
-    uint256 constant public MAX_BID_PERIOD = 30 days;
+    uint256 constant public MIN_bidPeriod = 1 hours;
+    uint256 constant public MAX_bidPeriod = 30 days;
     uint256 constant public MIN_COOLDOWN_PERIOD = 1 hours;
     uint256 constant public MAX_COOLDOWN_PERIOD = 30 days;
-    uint256 constant public MAX_ENTRY_FEE = 25; // 25%
-    uint256 constant public MIN_ZONE_TAX = 1; // 0.01%
-    uint256 constant public MAX_ZONE_TAX = 1000;
-    uint256 constant public MAX_MIN_RAISE = 50;
+    uint256 constant public MAX_entryFee = 25; // 25%
+    uint256 constant public MIN_zoneTax = 1; // 0.01%
+    uint256 constant public MAX_zoneTax = 1000;
+    uint256 constant public MAX_minRaise = 50;
 
     // for updating country floor stake price
-    uint256 constant public MIN_FLOOR_STAKE_PRICE = 1 ether; // 1 DTH
+    uint256 constant public MIN_floorStakePrice = 1 ether; // 1 DTH
 
-    IDetherToken public dth;
+    IDetherToken public override dth;
     IGeoRegistry public geoRegistry;
 
     address public voting;
@@ -90,7 +90,7 @@ contract ProtocolController is IProtocolController, IERC223ReceivingContract {
     function validateCountryFloorPrice(bytes2 _countryCode, uint256 _floorStakePrice) public view override {
         _onlyVoting();
         require(geoRegistry.zoneIsEnabled(_countryCode), "country not enabled");
-        require(_floorStakePrice >= MIN_FLOOR_STAKE_PRICE, 'Floor stake price must be >= 1 DTH');
+        require(_floorStakePrice >= MIN_floorStakePrice, 'Floor stake price must be >= 1 DTH');
     }
 
     function updateCountryFloorPrice(bytes2 _countryCode, uint256 _floorStakePrice) public override {
@@ -107,15 +107,15 @@ contract ProtocolController is IProtocolController, IERC223ReceivingContract {
 
     function validateGlobalParams(SharedStructs.Params_t memory newParams) public view override {
         _onlyVoting();
-        require(newParams.bidPeriod >= MIN_BID_PERIOD, 'Bid period must be >= 1 hours');
-        require(newParams.bidPeriod <= MAX_BID_PERIOD, 'Bid period must be >= 1 hours');
+        require(newParams.bidPeriod >= MIN_bidPeriod, 'Bid period must be >= 1 hours');
+        require(newParams.bidPeriod <= MAX_bidPeriod, 'Bid period must be >= 1 hours');
         require(newParams.cooldownPeriod >= MIN_COOLDOWN_PERIOD, 'Bid period must be >= 30 min ');
         require(newParams.cooldownPeriod <= MAX_COOLDOWN_PERIOD, 'Bid period must be >= 30 min ');
         require(newParams.bidPeriod > newParams.cooldownPeriod, 'Bid period must be > cooldown period ');
-        require(newParams.entryFee <= MAX_ENTRY_FEE, 'Entry fee must be less than 25% of current price');
-        require(newParams.zoneTax >= MIN_ZONE_TAX, 'Zone Tax must be at least 0.01% daily');
-        require(newParams.zoneTax <= MAX_ZONE_TAX, 'Zone Tax must be at least 10% daily');
-        require(newParams.minRaise < MAX_MIN_RAISE, 'Min raise must less than 50%');
+        require(newParams.entryFee <= MAX_entryFee, 'Entry fee must be less than 25% of current price');
+        require(newParams.zoneTax >= MIN_zoneTax, 'Zone Tax must be at least 0.01% daily');
+        require(newParams.zoneTax <= MAX_zoneTax, 'Zone Tax must be at least 10% daily');
+        require(newParams.minRaise < MAX_minRaise, 'Min raise must less than 50%');
     }
 
     function updateGlobalParams(SharedStructs.Params_t calldata newParams) public override {

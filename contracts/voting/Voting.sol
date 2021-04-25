@@ -32,6 +32,7 @@ contract Voting {
         uint256 nay;
         uint256 votingPower;
         bytes args;
+        address creator;
         ProposalKind kind;
         mapping(address => VoterState) voters;
     }
@@ -48,7 +49,7 @@ contract Voting {
     mapping(uint256 => Proposal) private proposals;
     uint256 public proposalsLength;
     mapping(bytes32 => uint256) public proposalHashToId;
-
+    mapping(address => uint256) public userToProposalId;
     uint64 public constant PCT_BASE = 100e16; // = 100%, 50e16 = 50%, 0 = 0%
 
     // can be adjusted by manager
@@ -174,7 +175,8 @@ contract Voting {
             uint256 nay,
             uint256 votingPower,
             ProposalKind kind,
-            bytes memory args
+            bytes memory args,
+            address creator
         )
     {
         require(_proposalExists(_proposalId), "proposal does not exist");
@@ -192,6 +194,7 @@ contract Voting {
         votingPower = proposal.votingPower;
         kind = proposal.kind;
         args = proposal.args;
+        creator = proposal.creator;
     }
 
     function getVoterState(uint256 _proposalId, address _voter) public view returns (VoterState) {
@@ -295,6 +298,8 @@ contract Voting {
       uint256 voterStake = dthWrapper.balanceOfAt(msg.sender, snapshotBlock);
       require(voterStake >= minProposalStake, "not enough wrapped dth");
 
+      require(userToProposalId[msg.sender] == 0, "user already has proposal");
+
       uint256 proposalId = ++proposalsLength;
 
       if (_proposalKind == ProposalKind.GlobalParams) {
@@ -305,6 +310,8 @@ contract Voting {
         _validateArgsSendDth(proposalId, _proposalArgs);
       }
 
+      userToProposalId[msg.sender] = proposalId;
+
       Proposal storage proposal = proposals[proposalId];
       proposal.startDate = uint64(block.timestamp);
       proposal.snapshotBlock = snapshotBlock;
@@ -313,6 +320,7 @@ contract Voting {
       proposal.votingPower = dthWrapper.totalSupplyAt(snapshotBlock);
       proposal.kind = _proposalKind;
       proposal.args = _proposalArgs;
+      proposal.creator = msg.sender;
 
       emit NewProposal(proposalId, msg.sender);
     }
@@ -365,6 +373,7 @@ contract Voting {
         require(_isValuePct(proposal.yea, proposal.votingPower, proposal.minAcceptQuorumPct), "not enough support in possible votes");
 
         proposal.executed = true;
+        userToProposalId[proposal.creator] = 0;
 
         if (proposal.kind == ProposalKind.GlobalParams) {
           (

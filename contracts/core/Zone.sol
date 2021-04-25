@@ -26,7 +26,7 @@ contract Zone is IERC223ReceivingContract {
     //
     // ------------------------------------------------
 
-    uint256 public FLOOR_STAKE_PRICE; // DTH, which is also 18 decimals!
+    uint256 public floorStakePrice; // DTH, which is also 18 decimals!
 
     IProtocolController.Params_t public zoneParams;
     IZoneFactory public zoneFactory;
@@ -172,21 +172,15 @@ contract Zone is IERC223ReceivingContract {
         highestBidder = auction.highestBidder;
     }
 
-    function _setParams(
-    ) private {
-<<<<<<< HEAD
-        zoneParams = protocolController.getGlobalParams();
-        FLOOR_STAKE_PRICE = protocolController.getCountryFloorPrice(country);
-=======
+    function _setParams() private {
         SharedStructs.Params_t memory globalParams = protocolController.getGlobalParams();
         uint256 zoneFloorPrice = protocolController.getCountryFloorPrice(country);
-        FLOOR_STAKE_PRICE = zoneFloorPrice;
-        BID_PERIOD = globalParams.bidPeriod;
-        COOLDOWN_PERIOD = globalParams.cooldownPeriod;
-        ENTRY_FEE = globalParams.entryFee;
-        ZONE_TAX = globalParams.zoneTax;
-        MIN_RAISE = globalParams.minRaise;
->>>>>>> initial voting code
+        floorStakePrice = zoneFloorPrice;
+        zoneParams.bidPeriod = globalParams.bidPeriod;
+        zoneParams.cooldownPeriod = globalParams.cooldownPeriod;
+        zoneParams.entryFee = globalParams.entryFee;
+        zoneParams.zoneTax = globalParams.zoneTax;
+        zoneParams.minRaise = globalParams.minRaise;
     }
 
     function _removeZoneOwner(bool fromRelease) private {
@@ -215,7 +209,7 @@ contract Zone is IERC223ReceivingContract {
         uint256 taxAmount = zoneOwner.staked.calcHarbergerTax(
             zoneOwner.lastTaxTime,
             block.timestamp,
-            zoneParams.ZONE_TAX
+            zoneParams.zoneTax
         );
 
         if (taxAmount > zoneOwner.balance) {
@@ -278,7 +272,7 @@ contract Zone is IERC223ReceivingContract {
         zoneOwnerPtr.payTax(zoneOwner.staked.calcHarbergerTax(
             lastAuction.endTime,
             block.timestamp,
-            zoneParams.ZONE_TAX
+            zoneParams.zoneTax
         ));
 
         zoneFactory.removeActiveBidder(lastAuction.highestBidder);
@@ -334,14 +328,14 @@ contract Zone is IERC223ReceivingContract {
             if (zoneOwner.auctionId == 0) {
                 // current zone owner did not become owner by winning an auction, but by creating this zone or caliming it when it was free
                 require(
-                    block.timestamp > zoneOwner.startTime + zoneParams.COOLDOWN_PERIOD,
+                    block.timestamp > zoneOwner.startTime + zoneParams.cooldownPeriod,
                     "cooldown period did not end yet"
                 );
             } else {
                 // current zone owner became owner by winning an auction (which has ended)
                 require(
                     block.timestamp >
-                    auctions.auctionIdToAuction[auctions.currentAuctionId].endTime + zoneParams.COOLDOWN_PERIOD,
+                    auctions.auctionIdToAuction[auctions.currentAuctionId].endTime + zoneParams.cooldownPeriod,
                     "cooldown period did not end yet"
                 );
             }
@@ -366,7 +360,7 @@ contract Zone is IERC223ReceivingContract {
         _setParams();
 
         require(
-            _dthAmount >= FLOOR_STAKE_PRICE,
+            _dthAmount >= floorStakePrice,
             "need at least minimum zone stake amount (100 DTH)"
         );
         require(

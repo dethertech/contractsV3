@@ -10,6 +10,7 @@
     "test-voting": "truffle test test/Voting.spec.js",
     "test-zone": "truffle test test/ZoneFactory-Zone.spec.js",
     "test-shop": "truffle test test/Shops.spec.js",
+    "test-all": "truffle test test/*.spec.js",
     "migrate": "truffle migrate",
     "ganache": "ganache-cli --gasLimit 15000000 --allowUnlimitedContractSize",
     "compile": "npx truffle compile"

@@ -12,11 +12,11 @@ abstract contract IProtocolController {
     //
     // ------------------------------------------------
     struct Params_t {
-        uint256 BID_PERIOD;             // Time during everyon can bid, when an auction is opened
-        uint256 COOLDOWN_PERIOD;        // Time when no auction can be opened after an auction end
-        uint256 ENTRY_FEE;              // Amount needed to be paid when starting an auction
-        uint256 ZONE_TAX;               // Amount of taxes raised
-        uint256 MIN_RAISE;
+        uint256 bidPeriod;             // Time during everyon can bid, when an auction is opened
+        uint256 cooldownPeriod;        // Time when no auction can be opened after an auction end
+        uint256 entryFee;              // Amount needed to be paid when starting an auction
+        uint256 zoneTax;               // Amount of taxes raised
+        uint256 minRaise;
     }
 
     function dth() external virtual view returns (IDetherToken);
@@ -27,7 +27,7 @@ abstract contract IProtocolController {
 
     // dao-initiated updates
     function updateGlobalParams(SharedStructs.Params_t calldata newParams) public virtual;
-    function updateCountryFloorPrice(bytes2 zoneCountry, uint256 FLOOR_STAKE_PRICE) public virtual;
+    function updateCountryFloorPrice(bytes2 zoneCountry, uint256 floorStakePrice) public virtual;
     function withdrawDth(address recipient, uint256 amount, string calldata id) public virtual;
 
     // validation functions for dao proposals
