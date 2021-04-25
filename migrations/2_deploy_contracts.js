@@ -1,3 +1,4 @@
+const { ethToWei, toVotingPerc } = require('../test/utils/convert');
 /* global artifacts */
 const DetherToken = artifacts.require("DetherToken.sol");
 const CertifierRegistry = artifacts.require("CertifierRegistry");
@@ -11,6 +12,8 @@ const Zone = artifacts.require("Zone.sol");
 const Teller = artifacts.require("Teller.sol");
 const Shops = artifacts.require("Shops.sol");
 const ProtocolController = artifacts.require("ProtocolController.sol");
+const DthWrapper = artifacts.require("DthWrapper.sol");
+const Voting = artifacts.require("Voting.sol");
 
 const ADDRESS_ZERO = "0x0000000000000000000000000000000000000000";
 // const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -59,9 +62,6 @@ module.exports = async (deployer, network) => {
   await deployer.deploy(GeoRegistry);
   const geo = await GeoRegistry.deployed();
 
-  await deployer.deploy(ProtocolController, dth.address);
-  const protocolController = await ProtocolController.deployed();
-
   await deployer.deploy(FeeTaxHelpers);
   //const feeTaxHelper = await FeeTaxHelpers.deployed();
   deployer.link(FeeTaxHelpers, [ZoneOwnerUtils, AuctionUtils, Zone]);
@@ -82,6 +82,19 @@ module.exports = async (deployer, network) => {
     gas: 6500000,
   });
   const users = await Users.deployed();
+
+  // voting stuff
+
+  await deployer.deploy(DthWrapper, dth.address);
+  const dthWrapper = await DthWrapper.deployed();
+
+  await deployer.deploy(Voting, dthWrapper.address, toVotingPerc(25), toVotingPerc(60), ethToWei(10), 7*24*60*60);
+  const voting = await Voting.deployed();
+
+  await deployer.deploy(ProtocolController, dth.address, voting.address, geo.address);
+  const protocolController = await ProtocolController.deployed();
+
+  await voting.setProtocolController(protocolController.address)
 
   await deployer.deploy(
     ZoneFactory,
@@ -110,4 +123,5 @@ module.exports = async (deployer, network) => {
     users.address,
     zoneFactory.address
   );
+
 };

@@ -75,7 +75,6 @@ contract Voting {
 
     event NewProposal(uint256 indexed proposalId, address indexed creator);
     event PlacedVote(uint256 indexed proposalId, address indexed voter, bool voteYes, uint256 stake);
-    event CancelledVote(uint256 indexed proposalId, address indexed voter, bool voteYes, uint256 stake);
     event ExecutedProposal(uint256 indexed proposalId, address indexed executor);
 
     // ------------------------------------------------
@@ -117,8 +116,6 @@ contract Voting {
         protocolController = IProtocolController(_protocolController);
 
         emit SetProtocolController(_protocolController);
-
-        protocolController = IProtocolController(_protocolController);
     }
 
     function changeManager(address _manager) external {
@@ -208,13 +205,12 @@ contract Voting {
     //
     // ------------------------------------------------
 
-
     function _proposalExists(uint256 proposalId) private view returns (bool) {
-        return proposalId < proposalsLength;
+        return proposalId <= proposalsLength;
     }
 
     function _isProposalOpen(Proposal storage _proposal) private view returns (bool) {
-        return uint64(block.timestamp) < _proposal.startDate + voteTime && !_proposal.executed;
+        return uint64(block.timestamp) < _proposal.startDate + voteTime;
     }
 
     function _isActiveProposal(bytes32 _proposalHash) private view returns (bool) {
@@ -233,7 +229,7 @@ contract Voting {
     //
     // ------------------------------------------------
 
-    function _validateArgsGlobalParams(bytes memory _args) private view {
+    function _validateArgsGlobalParams(uint256 _proposalId, bytes memory _args) private {
       require(_args.length == 160, "invalid proposal args length");
 
       (
@@ -244,31 +240,43 @@ contract Voting {
         uint256 minRaise
       ) = abi.decode(_args, (uint256, uint256, uint256, uint256, uint256));
 
+      bytes32 proposalHash = keccak256(abi.encodePacked(bidPeriod, cooldownPeriod, entryFee, zoneTax, minRaise));
+      require(proposalHashToId[proposalHash] == 0, "proposal with same args already exists");
+      proposalHashToId[proposalHash] = _proposalId;
+
       SharedStructs.Params_t memory params = SharedStructs.Params_t(bidPeriod, cooldownPeriod, entryFee, zoneTax, minRaise);
 
       protocolController.validateGlobalParams(params);
     }
 
-    function _validateArgsSendDth(bytes memory _args) private view {
-      require(_args.length == 52, "invalid proposal args length");
+    function _validateArgsSendDth(uint256 _proposalId, bytes memory _args) private {
+      require(_args.length == 64, "invalid proposal args length");
 
       (
-        address _recipient,
-        uint256 _amount
+        address recipient,
+        uint256 amount
       ) = abi.decode(_args, (address, uint256));
 
-      protocolController.validateWithdrawDth(_recipient, _amount);
+      bytes32 proposalHash = keccak256(abi.encodePacked(recipient, amount));
+      require(proposalHashToId[proposalHash] == 0, "proposal with same args already exists");
+      proposalHashToId[proposalHash] = _proposalId;
+
+      protocolController.validateWithdrawDth(recipient, amount);
     }
 
-    function _validateArgsCountryFloorPrice(bytes memory _args) private view {
-      require(_args.length == 34, "invalid proposal args length");
+    function _validateArgsCountryFloorPrice(uint256 _proposalId, bytes memory _args) private {
+      require(_args.length == 64, "invalid proposal args length");
 
       (
-        bytes2 _countryCode,
-        uint256 _floorStakePrice
+        bytes2 countryCode,
+        uint256 floorStakePrice
       ) = abi.decode(_args, (bytes2, uint256));
 
-      protocolController.validateCountryFloorPrice(_countryCode, _floorStakePrice);
+      bytes32 proposalHash = keccak256(abi.encodePacked(countryCode, floorStakePrice));
+      require(proposalHashToId[proposalHash] == 0, "proposal with same args already exists");
+      proposalHashToId[proposalHash] = _proposalId;
+
+      protocolController.validateCountryFloorPrice(countryCode, floorStakePrice);
     }
 
     // ------------------------------------------------
@@ -281,22 +289,21 @@ contract Voting {
       ProposalKind _proposalKind,
       bytes calldata _proposalArgs
     ) external {
+      require(address(protocolController) != address(0), 'protocolController not set');
+
       uint64 snapshotBlock = uint64(block.number) - 1; // avoid double voting in this very block
       uint256 voterStake = dthWrapper.balanceOfAt(msg.sender, snapshotBlock);
       require(voterStake >= minProposalStake, "not enough wrapped dth");
 
-      bytes32 proposalHash = keccak256(_proposalArgs);
-      require(!_isActiveProposal(proposalHash), "proposal with same args already exists");
+      uint256 proposalId = ++proposalsLength;
 
       if (_proposalKind == ProposalKind.GlobalParams) {
-        _validateArgsGlobalParams(_proposalArgs);
+        _validateArgsGlobalParams(proposalId, _proposalArgs);
       } else if (_proposalKind == ProposalKind.CountryFloorPrice) {
-        _validateArgsCountryFloorPrice(_proposalArgs);
+        _validateArgsCountryFloorPrice(proposalId, _proposalArgs);
       } else if (_proposalKind == ProposalKind.SendDth) {
-        _validateArgsSendDth(_proposalArgs);
+        _validateArgsSendDth(proposalId, _proposalArgs);
       }
-
-      uint256 proposalId = proposalsLength++;
 
       Proposal storage proposal = proposals[proposalId];
       proposal.startDate = uint64(block.timestamp);
@@ -306,8 +313,6 @@ contract Voting {
       proposal.votingPower = dthWrapper.totalSupplyAt(snapshotBlock);
       proposal.kind = _proposalKind;
       proposal.args = _proposalArgs;
-
-      proposalHashToId[proposalHash] = proposalId;
 
       emit NewProposal(proposalId, msg.sender);
     }
@@ -319,8 +324,10 @@ contract Voting {
     // ------------------------------------------------
 
     function placeVote(uint256 _proposalId, bool _voteYes) external {
+        require(_proposalExists(_proposalId), "proposal does not exist");
+
         Proposal storage proposal = proposals[_proposalId];
-        require(_isProposalOpen(proposal), "proposal cannot be voted on");
+        require(_isProposalOpen(proposal), "proposal ended");
 
         uint256 voterStake = dthWrapper.balanceOfAt(msg.sender, proposal.snapshotBlock);
         require(voterStake > 0, "caller does not have voting tokens");
@@ -347,36 +354,15 @@ contract Voting {
         emit PlacedVote(_proposalId, msg.sender, _voteYes, voterStake);
     }
 
-    function cancelVote(uint256 _proposalId) external {
-        Proposal storage proposal = proposals[_proposalId];
-        require(_isProposalOpen(proposal), "proposal cannot be voted on");
-
-        uint256 voterStake = dthWrapper.balanceOfAt(msg.sender, proposal.snapshotBlock);
-        require(voterStake > 0, "caller does not have voting tokens");
-
-        VoterState state = proposal.voters[msg.sender];
-        require(state == VoterState.Yea || state == VoterState.Nay, "did not place a vote");
-
-        if (state == VoterState.Yea) {
-            proposal.yea -= voterStake;
-        } else if (state == VoterState.Nay) {
-            proposal.nay -= voterStake;
-        }
-
-        proposal.voters[msg.sender] = VoterState.Absent;
-
-        emit CancelledVote(_proposalId, msg.sender, state == VoterState.Yea ? true : false, voterStake);
-    }
-
     function execute(uint256 _proposalId) external {
-        require(_proposalId < proposalsLength, "proposal does not exist");
+        require(_proposalExists(_proposalId), "proposal does not exist");
 
         Proposal storage proposal = proposals[_proposalId];
 
-        require(!_isProposalOpen(proposal), "proposal is not open");
-        require(_isValuePct(proposal.yea, proposal.votingPower, proposal.supportRequiredPct), "not enough support of votingPower");
-        require(_isValuePct(proposal.yea, proposal.yea + proposal.nay, proposal.supportRequiredPct), "not enough support of placed votes");
-        require(_isValuePct(proposal.yea, proposal.votingPower, proposal.minAcceptQuorumPct), "did not reach quorum of votingPower");
+        require(!_isProposalOpen(proposal), "proposal did not yet end");
+        require(!proposal.executed, "proposal already executed");
+        require(_isValuePct(proposal.yea, proposal.yea + proposal.nay, proposal.supportRequiredPct), "not enough support in casted votes");
+        require(_isValuePct(proposal.yea, proposal.votingPower, proposal.minAcceptQuorumPct), "not enough support in possible votes");
 
         proposal.executed = true;
 

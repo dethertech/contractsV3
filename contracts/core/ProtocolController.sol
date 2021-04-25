@@ -33,7 +33,7 @@ contract ProtocolController is IProtocolController, IERC223ReceivingContract {
 
     uint256 public dthBalance;
 
-    mapping (bytes2 => uint256) floorStakesPrices;
+    mapping (bytes2 => uint256) public floorStakesPrices;
 
     SharedStructs.Params_t public globalParams = SharedStructs.Params_t({
         bidPeriod: 48 hours,

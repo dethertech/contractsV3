@@ -7,7 +7,7 @@
     "test": "test"
   },
   "scripts": {
-    "test-settings": "truffle test test/ProtocolController.spec.js",
+    "test-voting": "truffle test test/Voting.spec.js",
     "test-zone": "truffle test test/ZoneFactory-Zone.spec.js",
     "test-shop": "truffle test test/Shops.spec.js",
     "migrate": "truffle migrate",

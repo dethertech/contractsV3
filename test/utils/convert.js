@@ -8,6 +8,7 @@ const weiToEth = eth => web3.utils.fromWei(eth, "ether");
 const asciiToHex = ascii => web3.utils.asciiToHex(ascii);
 const remove0x = txt => (txt.startsWith("0x") ? txt.slice(2) : txt); // eslint-disable-line
 const str = val => val.toString();
+const toVotingPerc = valPerc => toBN(valPerc).mul(toBN('10').pow(toBN('16')))
 
 module.exports = {
   toBN,
@@ -15,5 +16,6 @@ module.exports = {
   asciiToHex,
   remove0x,
   str,
-  weiToEth
+  weiToEth,
+  toVotingPerc
 };
