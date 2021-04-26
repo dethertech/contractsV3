@@ -28,7 +28,7 @@ const MIN_ZONE_DTH_STAKE = 100;
 
 const ONE_HOUR = 60 * 60;
 const ONE_DAY = ONE_HOUR * 24;
-const BID_PERIOD = 60 * 60 * 48; // 48 hours
+const bidPeriod = 60 * 60 * 48; // 48 hours
 const COOLDOWN_PERIOD = 60 * 60 * 24; // 24 hours
 
 const KLEROS_ARBITRATION_PRICE = 1; // eth
@@ -79,7 +79,7 @@ module.exports = {
 
   ONE_HOUR,
   ONE_DAY,
-  BID_PERIOD,
+  bidPeriod,
   COOLDOWN_PERIOD,
 
   KLEROS_ARBITRATION_PRICE,
