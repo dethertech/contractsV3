@@ -3,7 +3,6 @@ pragma experimental ABIEncoderV2;
 
 import "./DthWrapper.sol";
 import "../interfaces/IProtocolController.sol";
-import "../libraries/SharedStructs.sol";
 
 contract Voting {
 
@@ -23,17 +22,18 @@ contract Voting {
     // ------------------------------------------------
 
     struct Proposal {
-        bool executed;
         uint64 startDate;
         uint64 snapshotBlock;
         uint64 supportRequiredPct;
         uint64 minAcceptQuorumPct;
+        address creator;
+        bool executed;
+        ProposalKind kind;
         uint256 yea;
         uint256 nay;
         uint256 votingPower;
         bytes args;
-        address creator;
-        ProposalKind kind;
+        bytes32 argsHash;
         mapping(address => VoterState) voters;
     }
 
@@ -47,7 +47,7 @@ contract Voting {
     IProtocolController private protocolController;
 
     mapping(uint256 => Proposal) private proposals;
-    uint256 public proposalsLength;
+    uint256 public proposalIdCounter;
     mapping(bytes32 => uint256) public proposalHashToId;
     mapping(address => uint256) public userToProposalId;
     uint64 public constant PCT_BASE = 100e16; // = 100%, 50e16 = 50%, 0 = 0%
@@ -177,13 +177,14 @@ contract Voting {
             ProposalKind kind,
             bytes memory args,
             address creator
+            // bytes32 argsHash
         )
     {
-        require(_proposalExists(_proposalId), "proposal does not exist");
+        require(_proposalIdExists(_proposalId), "proposal does not exist");
 
         Proposal storage proposal = proposals[_proposalId];
 
-        open = _isProposalOpen(proposal);
+        open = !_proposalEnded(proposal);
         executed = proposal.executed;
         startDate = proposal.startDate;
         snapshotBlock = proposal.snapshotBlock;
@@ -198,7 +199,7 @@ contract Voting {
     }
 
     function getVoterState(uint256 _proposalId, address _voter) public view returns (VoterState) {
-        require(_proposalExists(_proposalId), "proposal does not exist");
+        require(_proposalIdExists(_proposalId), "proposal does not exist");
         return proposals[_proposalId].voters[_voter];
     }
 
@@ -208,16 +209,12 @@ contract Voting {
     //
     // ------------------------------------------------
 
-    function _proposalExists(uint256 proposalId) private view returns (bool) {
-        return proposalId <= proposalsLength;
+    function _proposalIdExists(uint256 proposalId) private view returns (bool) {
+        return proposalId > 0 && proposalId <= proposalIdCounter;
     }
 
-    function _isProposalOpen(Proposal storage _proposal) private view returns (bool) {
-        return uint64(block.timestamp) < _proposal.startDate + voteTime;
-    }
-
-    function _isActiveProposal(bytes32 _proposalHash) private view returns (bool) {
-        return _isProposalOpen(proposals[proposalHashToId[_proposalHash]]);
+    function _proposalEnded(Proposal storage _proposal) private view returns (bool) {
+        return uint64(block.timestamp) >= _proposal.startDate + voteTime;
     }
 
     function _isValuePct(uint256 _value, uint256 _total, uint256 _pct) private pure returns (bool) {
@@ -232,7 +229,7 @@ contract Voting {
     //
     // ------------------------------------------------
 
-    function _validateArgsGlobalParams(uint256 _proposalId, bytes memory _args) private {
+    function _validateArgsGlobalParams(uint256 _proposalId, bytes memory _args) private returns(bytes32) {
       require(_args.length == 160, "invalid proposal args length");
 
       (
@@ -247,12 +244,14 @@ contract Voting {
       require(proposalHashToId[proposalHash] == 0, "proposal with same args already exists");
       proposalHashToId[proposalHash] = _proposalId;
 
-      SharedStructs.Params_t memory params = SharedStructs.Params_t(bidPeriod, cooldownPeriod, entryFee, zoneTax, minRaise);
+      IProtocolController.GlobalParams memory params = IProtocolController.GlobalParams(bidPeriod, cooldownPeriod, entryFee, zoneTax, minRaise);
 
       protocolController.validateGlobalParams(params);
+
+      return proposalHash;
     }
 
-    function _validateArgsSendDth(uint256 _proposalId, bytes memory _args) private {
+    function _validateArgsSendDth(uint256 _proposalId, bytes memory _args) private returns(bytes32) {
       require(_args.length == 64, "invalid proposal args length");
 
       (
@@ -265,9 +264,11 @@ contract Voting {
       proposalHashToId[proposalHash] = _proposalId;
 
       protocolController.validateWithdrawDth(recipient, amount);
+
+      return proposalHash;
     }
 
-    function _validateArgsCountryFloorPrice(uint256 _proposalId, bytes memory _args) private {
+    function _validateArgsCountryFloorPrice(uint256 _proposalId, bytes memory _args) private returns(bytes32) {
       require(_args.length == 64, "invalid proposal args length");
 
       (
@@ -280,6 +281,8 @@ contract Voting {
       proposalHashToId[proposalHash] = _proposalId;
 
       protocolController.validateCountryFloorPrice(countryCode, floorStakePrice);
+
+      return proposalHash;
     }
 
     // ------------------------------------------------
@@ -294,20 +297,21 @@ contract Voting {
     ) external {
       require(address(protocolController) != address(0), 'protocolController not set');
 
-      uint64 snapshotBlock = uint64(block.number) - 1; // avoid double voting in this very block
+      uint64 snapshotBlock = uint64(block.number) - 1;
       uint256 voterStake = dthWrapper.balanceOfAt(msg.sender, snapshotBlock);
       require(voterStake >= minProposalStake, "not enough wrapped dth");
 
       require(userToProposalId[msg.sender] == 0, "user already has proposal");
 
-      uint256 proposalId = ++proposalsLength;
+      uint256 proposalId = ++proposalIdCounter;
 
+      bytes32 proposalHash;
       if (_proposalKind == ProposalKind.GlobalParams) {
-        _validateArgsGlobalParams(proposalId, _proposalArgs);
+        proposalHash = _validateArgsGlobalParams(proposalId, _proposalArgs);
       } else if (_proposalKind == ProposalKind.CountryFloorPrice) {
-        _validateArgsCountryFloorPrice(proposalId, _proposalArgs);
+        proposalHash = _validateArgsCountryFloorPrice(proposalId, _proposalArgs);
       } else if (_proposalKind == ProposalKind.SendDth) {
-        _validateArgsSendDth(proposalId, _proposalArgs);
+        proposalHash = _validateArgsSendDth(proposalId, _proposalArgs);
       }
 
       userToProposalId[msg.sender] = proposalId;
@@ -320,6 +324,7 @@ contract Voting {
       proposal.votingPower = dthWrapper.totalSupplyAt(snapshotBlock);
       proposal.kind = _proposalKind;
       proposal.args = _proposalArgs;
+      proposal.argsHash = proposalHash;
       proposal.creator = msg.sender;
 
       emit NewProposal(proposalId, msg.sender);
@@ -332,10 +337,10 @@ contract Voting {
     // ------------------------------------------------
 
     function placeVote(uint256 _proposalId, bool _voteYes) external {
-        require(_proposalExists(_proposalId), "proposal does not exist");
+        require(_proposalIdExists(_proposalId), "proposal does not exist");
 
         Proposal storage proposal = proposals[_proposalId];
-        require(_isProposalOpen(proposal), "proposal ended");
+        require(!_proposalEnded(proposal), "proposal ended");
 
         uint256 voterStake = dthWrapper.balanceOfAt(msg.sender, proposal.snapshotBlock);
         require(voterStake > 0, "caller does not have voting tokens");
@@ -363,17 +368,18 @@ contract Voting {
     }
 
     function execute(uint256 _proposalId) external {
-        require(_proposalExists(_proposalId), "proposal does not exist");
+        require(_proposalIdExists(_proposalId), "proposal does not exist");
 
         Proposal storage proposal = proposals[_proposalId];
 
-        require(!_isProposalOpen(proposal), "proposal did not yet end");
+        require(_proposalEnded(proposal), "proposal did not yet end");
         require(!proposal.executed, "proposal already executed");
         require(_isValuePct(proposal.yea, proposal.yea + proposal.nay, proposal.supportRequiredPct), "not enough support in casted votes");
         require(_isValuePct(proposal.yea, proposal.votingPower, proposal.minAcceptQuorumPct), "not enough support in possible votes");
 
         proposal.executed = true;
         userToProposalId[proposal.creator] = 0;
+        proposalHashToId[proposal.argsHash] = 0;
 
         if (proposal.kind == ProposalKind.GlobalParams) {
           (
@@ -384,7 +390,7 @@ contract Voting {
             uint256 _minRaise
           ) = abi.decode(proposal.args, (uint256, uint256, uint256, uint256, uint256));
 
-          SharedStructs.Params_t memory params = SharedStructs.Params_t(_bidPeriod, _cooldownPeriod, _entryFee, _zoneTax, _minRaise);
+          IProtocolController.GlobalParams memory params = IProtocolController.GlobalParams(_bidPeriod, _cooldownPeriod, _entryFee, _zoneTax, _minRaise);
 
           protocolController.updateGlobalParams(params);
         }
