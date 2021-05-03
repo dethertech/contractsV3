@@ -5,6 +5,7 @@ import "./FeeTaxHelpers.sol";
 import "../interfaces/IDetherToken.sol";
 import "../interfaces/IZoneFactory.sol";
 import "../interfaces/IProtocolController.sol";
+import "./Zone.sol";
 import "./ProtocolController.sol";
 
 library AuctionUtils {
@@ -60,7 +61,7 @@ library AuctionUtils {
         address _ownerAddress,
         uint256 _staked,
         IProtocolController _protocolController,
-        IProtocolController.Params_t memory _params,
+        Zone.ZoneParams memory _params,
         IZoneFactory zoneFactory
     ) external {
         require(
@@ -115,7 +116,7 @@ library AuctionUtils {
         address _ownerAddress,
         uint256 _staked,
         IProtocolController _protocolController,
-        IProtocolController.Params_t memory _params,
+        Zone.ZoneParams memory _params,
         IZoneFactory _zoneFactory
     ) external {
         require(

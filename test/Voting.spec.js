@@ -213,6 +213,26 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
         it("cannot create proposal with identical args as existing active proposal", async () => {
           await wrapDth(user1, 1);
+          await wrapDth(user2, 1);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.GlobalParams,
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+            { from: user1 }
+          );
+
+          await expectRevert2(
+            votingInstance.createProposal(
+              PROPOSAL_KIND.GlobalParams,
+              encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+              { from: user2 }
+            ),
+            'proposal with same args already exists'
+          )
+        });
+
+        it("cannot create proposal if user already has active proposal", async () => {
+          await wrapDth(user1, 1);
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.GlobalParams,
@@ -226,8 +246,53 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
               encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
               { from: user1 }
             ),
-            'proposal with same args already exists'
+            'user already has proposal'
           )
+        });
+
+        it("cannot create new proposal if old proposal ended but not yet executed", async () => {
+          await wrapDth(user1, 1);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.GlobalParams,
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+            { from: user1 }
+          );
+
+          await votingInstance.placeVote(1, true, { from: user1 });
+
+          await timeTravel.inSecs(7*24*60*60);
+
+          await expectRevert2(
+            votingInstance.createProposal(
+              PROPOSAL_KIND.GlobalParams,
+              encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+              { from: user1 }
+            ),
+            'user already has proposal'
+          )
+        });
+
+        it("can create new proposal if old proposal ended and was executed", async () => {
+          await wrapDth(user1, 1);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.GlobalParams,
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+            { from: user1 }
+          );
+
+          await votingInstance.placeVote(1, true, { from: user1 });
+
+          await timeTravel.inSecs(7*24*60*60);
+
+          await votingInstance.execute(1, { from: user1 });
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.GlobalParams,
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+            { from: user1 }
+          );
         });
       });
 
@@ -485,6 +550,26 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
         it("cannot create proposal with identical args as existing active proposal", async () => {
           await wrapDth(user1, 1);
+          await wrapDth(user2, 1);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.CountryFloorPrice,
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+            { from: user1 }
+          );
+
+          await expectRevert2(
+            votingInstance.createProposal(
+              PROPOSAL_KIND.CountryFloorPrice,
+              encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+              { from: user2 }
+            ),
+            'proposal with same args already exists'
+          )
+        });
+
+        it("cannot create proposal if user already has active proposal", async () => {
+          await wrapDth(user1, 1);
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.CountryFloorPrice,
@@ -498,8 +583,53 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
               encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
               { from: user1 }
             ),
-            'proposal with same args already exists'
+            'user already has proposal'
           )
+        });
+
+        it("cannot create new proposal if old proposal ended but not yet executed", async () => {
+          await wrapDth(user1, 1);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.CountryFloorPrice,
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+            { from: user1 }
+          );
+
+          await votingInstance.placeVote(1, true, { from: user1 });
+
+          await timeTravel.inSecs(7*24*60*60);
+
+          await expectRevert2(
+            votingInstance.createProposal(
+              PROPOSAL_KIND.CountryFloorPrice,
+              encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+              { from: user1 }
+            ),
+            'user already has proposal'
+          )
+        });
+
+        it("can create new proposal if old proposal ended and was executed", async () => {
+          await wrapDth(user1, 1);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.CountryFloorPrice,
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+            { from: user1 }
+          );
+
+          await votingInstance.placeVote(1, true, { from: user1 });
+
+          await timeTravel.inSecs(7*24*60*60);
+
+          await votingInstance.execute(1, { from: user1 });
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.CountryFloorPrice,
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+            { from: user1 }
+          );
         });
       });
 
@@ -769,6 +899,28 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
         it("cannot create proposal with identical args as existing active proposal", async () => {
           await wrapDth(user1, 1);
+          await wrapDth(user2, 1);
+
+          await payTaxesToProtocolController(user1, 7);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.SendDth,
+            encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(6)]),
+            { from: user1 }
+          );
+
+          await expectRevert2(
+            votingInstance.createProposal(
+              PROPOSAL_KIND.SendDth,
+              encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(6)]),
+              { from: user2 }
+            ),
+            'proposal with same args already exists'
+          )
+        });
+
+        it("cannot create proposal if user already has active proposal", async () => {
+          await wrapDth(user1, 1);
 
           await payTaxesToProtocolController(user1, 7);
 
@@ -784,8 +936,57 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
               encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(6)]),
               { from: user1 }
             ),
-            'proposal with same args already exists'
+            'user already has proposal'
           )
+        });
+
+        it("cannot create new proposal if old proposal ended but not yet executed", async () => {
+          await wrapDth(user1, 1);
+
+          await payTaxesToProtocolController(user1, 7);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.SendDth,
+            encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(6)]),
+            { from: user1 }
+          );
+
+          await votingInstance.placeVote(1, true, { from: user1 });
+
+          await timeTravel.inSecs(7*24*60*60);
+
+          await expectRevert2(
+            votingInstance.createProposal(
+              PROPOSAL_KIND.SendDth,
+              encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(6)]),
+              { from: user1 }
+            ),
+            'user already has proposal'
+          )
+        });
+
+        it("can create new proposal if old proposal ended and was executed", async () => {
+          await wrapDth(user1, 1);
+
+          await payTaxesToProtocolController(user1, 7);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.SendDth,
+            encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(6)]),
+            { from: user1 }
+          );
+
+          await votingInstance.placeVote(1, true, { from: user1 });
+
+          await timeTravel.inSecs(7*24*60*60);
+
+          await votingInstance.execute(1, { from: user1 });
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.SendDth,
+            encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(1)]),
+            { from: user1 }
+          );
         });
       });
 
