@@ -9,15 +9,17 @@ const GeoRegistry = artifacts.require("GeoRegistry");
 const ZoneFactory = artifacts.require("ZoneFactory");
 const Zone = artifacts.require("Zone");
 const Teller = artifacts.require("Teller");
-const TaxCollector = artifacts.require("TaxCollector");
-const Settings = artifacts.require("Settings");
+const ProtocolController = artifacts.require("ProtocolController");
+const FeeTaxHelpers = artifacts.require("FeeTaxHelpers");
+const DthWrapper = artifacts.require("DthWrapper");
+const Voting = artifacts.require("Voting");
 
 const Web3 = require("web3");
-
+const BN = Web3.utils.BN;
 const expect = require("./utils/chai");
 const TimeTravel = require("./utils/timeTravel");
 const { addCountry } = require("./utils/geo");
-const { ethToWei, asciiToHex, str, weiToEth } = require("./utils/convert");
+const { ethToWei, asciiToHex, str, weiToEth, toVotingPerc } = require("./utils/convert");
 const {
   expectRevert,
   expectRevert2,
@@ -31,7 +33,7 @@ const {
   MIN_ZONE_DTH_STAKE,
   ONE_HOUR,
   ONE_DAY,
-  BID_PERIOD,
+  bidPeriod,
   COOLDOWN_PERIOD,
   ADDRESS_ZERO,
   ADDRESS_BURN,
@@ -191,8 +193,8 @@ contract("ZoneFactory + Zone", (accounts) => {
   let zoneImplementationInstance;
   let tellerImplementationInstance;
   let certifierRegistryInstance;
-  let taxCollectorInstance;
-  let settingsInstance;
+  let protocolControllerInstance;
+  let taxFeeHelperInstance;
 
   before(async () => {
     __rootState__ = await timeTravel.saveState();
@@ -202,23 +204,40 @@ contract("ZoneFactory + Zone", (accounts) => {
   beforeEach(async () => {
     await timeTravel.revertState(__rootState__); // to go back to real time
     dthInstance = await DetherToken.new({ from: owner });
-    taxCollectorInstance = await TaxCollector.new(
-      dthInstance.address,
-      ADDRESS_BURN,
-      { from: owner }
-    );
     certifierRegistryInstance = await CertifierRegistry.new({ from: owner });
     geoInstance = await GeoRegistry.new({ from: owner });
 
-    settingsInstance = await Settings.new({ from: owner });
+    taxFeeHelperInstance = await FeeTaxHelpers.new();
+    dthWrapperInstance = await DthWrapper.new(dthInstance.address, { from: owner });
+    votingInstance = await Voting.new(
+      dthWrapperInstance.address,
+      toVotingPerc(25), // % of possible votes
+      toVotingPerc(60), // % of casted votes
+      ethToWei(1),     // 1 DTH
+      7*24*60*60,       // 7 days
+      { from: owner }
+    );
+    protocolControllerInstance = await ProtocolController.new(dthInstance.address, votingInstance.address, geoInstance.address, { from: owner });
+    await votingInstance.setProtocolController(protocolControllerInstance.address, { from: owner });
+    usersInstance = await Users.new(
+      geoInstance.address,
+      certifierRegistryInstance.address,
+      { from: owner }
+    );
+
     zoneImplementationInstance = await Zone.new({
       from: owner,
     });
 
     tellerImplementationInstance = await Teller.new({ from: owner });
-    usersInstance = await Users.new(
+
+    zoneFactoryInstance = await ZoneFactory.new(
+      dthInstance.address,
       geoInstance.address,
-      certifierRegistryInstance.address,
+      usersInstance.address,
+      zoneImplementationInstance.address,
+      tellerImplementationInstance.address,
+      protocolControllerInstance.address,
       { from: owner }
     );
 
@@ -228,8 +247,7 @@ contract("ZoneFactory + Zone", (accounts) => {
       usersInstance.address,
       zoneImplementationInstance.address,
       tellerImplementationInstance.address,
-      taxCollectorInstance.address,
-      settingsInstance.address,
+      protocolControllerInstance.address,
       { from: owner }
     );
     // await usersInstance.setZoneFactory(zoneFactoryInstance.address, {
@@ -632,15 +650,16 @@ contract("ZoneFactory + Zone", (accounts) => {
             str(lastBlockTimestamp)
           );
           expect(lastAuction.endTime).to.be.bignumber.equal(
-            str(lastBlockTimestamp + BID_PERIOD)
+            str(lastBlockTimestamp + bidPeriod)
           );
           expect(lastAuction.highestBidder).to.equal(user2);
           const bidMinusEntryFee = (
-            await zoneInstance.calcEntryFee(ethToWei(bidAmount))
+            await taxFeeHelperInstance.calcEntryFee(ethToWei(bidAmount), 4)
           ).bidAmount;
           expect(lastAuction.highestBid).to.be.bignumber.equal(
             bidMinusEntryFee
           );
+
           // ref should be paid
           // TO DO ADD MORE TEST
           const newRefDthBalance = await dthInstance.balanceOf(user5);
@@ -721,10 +740,10 @@ contract("ZoneFactory + Zone", (accounts) => {
           );
 
           expect(lastAuction.endTime).to.be.bignumber.gte(
-            str(lastBlockTimestamp + BID_PERIOD - 1)
+            str(lastBlockTimestamp + bidPeriod - 1)
           );
           expect(lastAuction.endTime).to.be.bignumber.lte(
-            str(lastBlockTimestamp + BID_PERIOD + 1)
+            str(lastBlockTimestamp + bidPeriod + 1)
           );
 
           expect(lastAuction.highestBidder).to.equal(user1);
@@ -855,7 +874,7 @@ contract("ZoneFactory + Zone", (accounts) => {
           await timeTravel.inSecs(COOLDOWN_PERIOD + ONE_HOUR);
           await placeBid(user2, MIN_ZONE_DTH_STAKE + 11, zoneInstance.address); // loser, can withdraw
           await placeBid(user3, MIN_ZONE_DTH_STAKE + 25, zoneInstance.address); // winner
-          await timeTravel.inSecs(BID_PERIOD + ONE_HOUR);
+          await timeTravel.inSecs(bidPeriod + ONE_HOUR);
           await expectRevert(
             zoneInstance.withdrawFromAuction("2", { from: user2 }),
             "auctionId does not exist"
@@ -874,7 +893,7 @@ contract("ZoneFactory + Zone", (accounts) => {
           await timeTravel.inSecs(COOLDOWN_PERIOD + ONE_HOUR);
           await placeBid(user2, MIN_ZONE_DTH_STAKE + 11, zoneInstance.address); // loser, can withdraw
           await placeBid(user3, MIN_ZONE_DTH_STAKE + 25, zoneInstance.address); // winner
-          await timeTravel.inSecs(BID_PERIOD + ONE_HOUR);
+          await timeTravel.inSecs(bidPeriod + ONE_HOUR);
           await expectRevert(
             zoneInstance.withdrawFromAuction("1", { from: user3 }),
             "auction winner can not withdraw"
@@ -884,7 +903,7 @@ contract("ZoneFactory + Zone", (accounts) => {
           await timeTravel.inSecs(COOLDOWN_PERIOD + ONE_HOUR);
           await placeBid(user2, MIN_ZONE_DTH_STAKE + 11, zoneInstance.address); // loser, can withdraw
           await placeBid(user3, MIN_ZONE_DTH_STAKE + 25, zoneInstance.address); // winner
-          await timeTravel.inSecs(BID_PERIOD + ONE_HOUR);
+          await timeTravel.inSecs(bidPeriod + ONE_HOUR);
           await zoneInstance.withdrawFromAuction("1", { from: user2 });
           await expectRevert(
             zoneInstance.withdrawFromAuction("1", { from: user2 }),
@@ -895,7 +914,7 @@ contract("ZoneFactory + Zone", (accounts) => {
           await timeTravel.inSecs(COOLDOWN_PERIOD + ONE_HOUR);
           await placeBid(user2, MIN_ZONE_DTH_STAKE + 11, zoneInstance.address); // loser, can withdraw
           await placeBid(user3, MIN_ZONE_DTH_STAKE + 25, zoneInstance.address); // winner
-          await timeTravel.inSecs(BID_PERIOD + ONE_HOUR);
+          await timeTravel.inSecs(bidPeriod + ONE_HOUR);
           await zoneInstance.withdrawFromAuction("1", { from: user2 });
         });
         describe("when succeeds after bid period ended", () => {
@@ -933,7 +952,7 @@ contract("ZoneFactory + Zone", (accounts) => {
             auctionLive = auctionToObjPretty(
               await zoneInstance.getLastAuction()
             );
-            await timeTravel.inSecs(BID_PERIOD + ONE_HOUR);
+            await timeTravel.inSecs(bidPeriod + ONE_HOUR);
             user1dthBalanceBefore = await dthInstance.balanceOf(user1);
             user2dthBalanceBefore = await dthInstance.balanceOf(user2);
             user3dthBalanceBefore = await dthInstance.balanceOf(user3);
@@ -1207,7 +1226,7 @@ contract("ZoneFactory + Zone", (accounts) => {
             );
 
             // advance in time
-            await timeTravel.inSecs(BID_PERIOD + 120);
+            await timeTravel.inSecs(bidPeriod + 120);
 
             //     // process state by user1 withdraw
 
@@ -1474,20 +1493,30 @@ contract("ZoneFactory + Zone", (accounts) => {
               await zoneInstance.getZoneOwner()
             );
             const bidMinusEntryFee = (
-              await zoneInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 76))
+              await taxFeeHelperInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 76), 4)
             ).bidAmount;
             expect(zoneOwnerAfter.staked).to.be.bignumber.equal(
               bidMinusEntryFee
             );
             const lastAuctionEndTime = zoneOwnerAfter.startTime; // we just added a zoneowner, his startTime will be that first auctions endTime
             const lastBlockTimestamp = await getLastBlockTimestamp();
-            const bidMinusTaxesPaid = (
-              await zoneInstance.calcHarbergerTax(
+            const zoneParams = await zoneInstance.zoneParams()
+            const harbTaxes = await taxFeeHelperInstance.calcHarbergerTax(
+                bidMinusEntryFee,
                 lastAuctionEndTime,
                 lastBlockTimestamp,
-                bidMinusEntryFee
+                zoneParams.zoneTax
               )
-            ).keepAmount;
+            const bidMinusTaxesPaid = BN(bidMinusEntryFee).sub(harbTaxes)
+            // const bidMinusTaxesPaid = (
+            //   await taxFeeHelperInstance.calcHarbergerTax(
+            //     lastAuctionEndTime,
+            //     lastBlockTimestamp,
+            //     bidMinusEntryFee,
+            //     4
+            //   )
+            // ).keepAmount;
+
             expect(zoneOwnerAfter.balance).to.be.bignumber.equal(
               bidMinusTaxesPaid
             );
@@ -1502,14 +1531,14 @@ contract("ZoneFactory + Zone", (accounts) => {
       });
       describe("Zone.withdrawFromAuctions(uint[] _auctionIds)", () => {
         it("should succeed to withdraw all of a users withdrawable bids", async () => {
-          // TO DO: modify the test with MIN_RAISE of 5% ans
+          // TO DO: modify the test with minRaise of 5% ans
           // auction 1
           await timeTravel.inSecs(COOLDOWN_PERIOD + ONE_HOUR);
           await placeBid(user2, MIN_ZONE_DTH_STAKE + 11, zoneInstance.address); // loser
           await placeBid(user3, MIN_ZONE_DTH_STAKE + 25, zoneInstance.address); // loser
           await placeBid(user4, MIN_ZONE_DTH_STAKE + 40, zoneInstance.address); // loser
           await placeBid(user5, MIN_ZONE_DTH_STAKE + 55, zoneInstance.address); // winner
-          await timeTravel.inSecs(BID_PERIOD + ONE_HOUR);
+          await timeTravel.inSecs(bidPeriod + ONE_HOUR);
 
           await zoneInstance.withdrawFromAuction(1, { from: user2 });
           await zoneInstance.withdrawFromAuction(1, { from: user3 });
@@ -1522,7 +1551,7 @@ contract("ZoneFactory + Zone", (accounts) => {
           await placeBid(user2, MIN_ZONE_DTH_STAKE + 95, zoneInstance.address); // loser
           await placeBid(user3, MIN_ZONE_DTH_STAKE + 120, zoneInstance.address); // loser
           await placeBid(user4, MIN_ZONE_DTH_STAKE + 145, zoneInstance.address); // winner
-          await timeTravel.inSecs(BID_PERIOD + ONE_HOUR);
+          await timeTravel.inSecs(bidPeriod + ONE_HOUR);
 
           await zoneInstance.withdrawFromAuction(2, { from: user1 });
           await zoneInstance.withdrawFromAuction(2, { from: user2 });
@@ -1538,7 +1567,7 @@ contract("ZoneFactory + Zone", (accounts) => {
           await placeBid(user2, MIN_ZONE_DTH_STAKE + 195, zoneInstance.address); // loser
           await placeBid(user5, MIN_ZONE_DTH_STAKE + 225, zoneInstance.address); // loser
           await placeBid(user3, MIN_ZONE_DTH_STAKE + 255, zoneInstance.address); // winner
-          await timeTravel.inSecs(BID_PERIOD + ONE_HOUR);
+          await timeTravel.inSecs(bidPeriod + ONE_HOUR);
 
           await zoneInstance.withdrawFromAuction(3, {
             from: user1,
@@ -1557,15 +1586,15 @@ contract("ZoneFactory + Zone", (accounts) => {
           // await zoneInstance.withdrawDth({ from: user4 });
 
           // TOD CALC THE GOOD AMOUNT
-          const user2bid1MinusEntryFee1 = (
-            await zoneInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 10))
+          /* const user2bid1MinusEntryFee1 = (
+            await taxFeeHelperInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 10), 4)
           ).bidAmount;
           const user2bid1MinusEntryFee2 = (
-            await zoneInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 60))
+            await taxFeeHelperInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 60), 4)
           ).bidAmount;
           const user2bid1MinusEntryFee3 = (
-            await zoneInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 100))
-          ).bidAmount;
+            await taxFeeHelperInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 100), 4)
+          ).bidAmount;*/
 
           // // expect time
 
@@ -1604,12 +1633,12 @@ contract("ZoneFactory + Zone", (accounts) => {
           // expect(zoneOwner.lastTaxTime).to.be.bignumber.equal(
           //   str(lastBlockTimestamp)
           // );
-          // const bidMinusEntryFeeUser3 = (await zoneInstance.calcEntryFee(
+          // const bidMinusEntryFeeUser3 = (await taxFeeHelperInstance.calcEntryFee(
           //   ethToWei(MIN_ZONE_DTH_STAKE + 140)
           // )).bidAmount;
           // expect(zoneOwner.staked).to.be.bignumber.equal(bidMinusEntryFeeUser3);
-          // const lastAuctionEndTime = lastAuctionBlockTimestamp + BID_PERIOD;
-          // const bidMinusTaxesPaid = (await zoneInstance.calcHarbergerTax(
+          // const lastAuctionEndTime = lastAuctionBlockTimestamp + bidPeriod;
+          // const bidMinusTaxesPaid = (await taxFeeHelperInstance.calcHarbergerTax(
           //   lastAuctionEndTime,
           //   lastBlockTimestamp,
           //   bidMinusEntryFeeUser3
@@ -1625,7 +1654,7 @@ contract("ZoneFactory + Zone", (accounts) => {
           //   str(lastAuctionBlockTimestamp)
           // );
           // expect(lastAuction.endTime).to.be.bignumber.equal(
-          //   str(lastAuctionBlockTimestamp + BID_PERIOD)
+          //   str(lastAuctionBlockTimestamp + bidPeriod)
           // );
           // expect(lastAuction.highestBidder).to.equal(user3);
           // expect(lastAuction.highestBid).to.be.bignumber.equal(
@@ -2111,13 +2140,13 @@ contract("ZoneFactory + Zone", (accounts) => {
     });
   });
 
-  describe("TaxCollector", () => {
+  describe("Tax Collector", () => {
     let zoneInstance;
     let tellerInstance;
 
     it("should have a positive balance and able to withdraw", async () => {
       const preBalance = await dthInstance.balanceOf(
-        taxCollectorInstance.address
+        protocolControllerInstance.address
       );
       // console.log('balance pre', preBalance.toString());
       await enableAndLoadCountry(COUNTRY_CG);
@@ -2150,18 +2179,12 @@ contract("ZoneFactory + Zone", (accounts) => {
       await zoneInstance.release({ from: user1 });
 
       const postBalance = await dthInstance.balanceOf(
-        taxCollectorInstance.address
+        protocolControllerInstance.address
       );
       // console.log('balance post', postBalance.toString());
       expect(postBalance).to.be.bignumber.gt(preBalance);
 
       const balanceZero = await dthInstance.balanceOf(ADDRESS_BURN);
-      await taxCollectorInstance.collect({ from: user3 });
-      const postBalance2 = await dthInstance.balanceOf(
-        taxCollectorInstance.address
-      );
-      const balanceZero2 = await dthInstance.balanceOf(ADDRESS_BURN);
-      expect(balanceZero2).to.be.bignumber.gt(balanceZero);
     });
   });
 
@@ -2180,59 +2203,62 @@ contract("ZoneFactory + Zone", (accounts) => {
       });
       describe("Zone.calcEntryFee(uint _bid)", () => {
         it("returns correct result for 100 dth", async () => {
-          const res = await zoneInstance.calcEntryFee(ethToWei(100));
+          const res = await taxFeeHelperInstance.calcEntryFee(ethToWei(100), 4);
           expect(res.burnAmount).to.be.bignumber.equal(ethToWei(4)); // entry fee now 4%
           expect(res.bidAmount).to.be.bignumber.equal(ethToWei(96));
         });
         it("returns correct result for 101 dth", async () => {
-          const res = await zoneInstance.calcEntryFee(ethToWei(101));
+          const res = await taxFeeHelperInstance.calcEntryFee(ethToWei(101), 4);
           expect(res.burnAmount).to.be.bignumber.equal(ethToWei(4.04));
           expect(res.bidAmount).to.be.bignumber.equal(ethToWei(96.96));
         });
       });
-      describe("Zone.calcHarbergerTax(uint _startTime, uint _endTime, uint _dthAmount)", () => {
+      describe("Zone.calcHarbergerTax(uint _startTime, uint _endTime, uint _dthAmount, uint _zoneTax)", () => {
         it("[tax 1 hour] stake 100 dth ", async () => {
-          const res = await zoneInstance.calcHarbergerTax(
+          const res = await taxFeeHelperInstance.calcHarbergerTax(
+            ethToWei(100),
             0,
             ONE_HOUR,
-            ethToWei(100)
+            "4" // zone_tax
           );
-          expect(res.taxAmount).to.be.bignumber.equal("1666666666666666");
-          expect(res.keepAmount).to.be.bignumber.equal("99998333333333333334");
+                    expect(res).to.be.bignumber.equal("1666666666666666");
         });
         it("[tax 1 day] stake 100 dth ", async () => {
-          const res = await zoneInstance.calcHarbergerTax(
+          const res = await taxFeeHelperInstance.calcHarbergerTax(
+            ethToWei(100),
             0,
             ONE_DAY,
-            ethToWei(100)
+            "4" // zone_tax
           );
-          expect(res.taxAmount).to.be.bignumber.equal("40000000000000000");
-          expect(res.keepAmount).to.be.bignumber.equal("99960000000000000000");
+          expect(res).to.be.bignumber.equal("40000000000000000");
+          // expect(res.keepAmount).to.be.bignumber.equal("99960000000000000000");
         });
         it("returns correct result for 101 dth", async () => {
-          const res = await zoneInstance.calcHarbergerTax(
+          const res = await taxFeeHelperInstance.calcHarbergerTax(
+            ethToWei(101),
             0,
             ONE_DAY,
-            ethToWei(101)
+            "4" // zone_tax
           );
-          expect(res.taxAmount).to.be.bignumber.equal("40400000000000000");
-          expect(res.keepAmount).to.be.bignumber.equal("100959600000000000000");
+          expect(res).to.be.bignumber.equal("40400000000000000");
+          // expect(res.keepAmount).to.be.bignumber.equal("100959600000000000000");
         });
         it("returns correct result 15 second tax time", async () => {
-          const res = await zoneInstance.calcHarbergerTax(0, 15, ethToWei(100));
+          const res = await taxFeeHelperInstance.calcHarbergerTax(ethToWei(100),0, 15, 4);
 
-          expect(res.taxAmount).to.be.bignumber.equal("6944444444444");
-          expect(res.keepAmount).to.be.bignumber.equal("99999993055555555556");
+          expect(res).to.be.bignumber.equal("6944444444444");
+          // expect(res.keepAmount).to.be.bignumber.equal("99999993055555555556");
         });
         it("returns correct result 1 year tax time", async () => {
-          const res = await zoneInstance.calcHarbergerTax(
+          const res = await taxFeeHelperInstance.calcHarbergerTax(
+            ethToWei(100),
             0,
             ONE_DAY * 365,
-            ethToWei(100)
+            "4" // zone_tax
           );
 
-          expect(res.taxAmount).to.be.bignumber.equal("14600000000000000000");
-          expect(res.keepAmount).to.be.bignumber.equal("85400000000000000000");
+          expect(res).to.be.bignumber.equal("14600000000000000000");
+          // expect(res.keepAmount).to.be.bignumber.equal("85400000000000000000");
         });
       });
     });
@@ -2290,7 +2316,7 @@ contract("ZoneFactory + Zone", (accounts) => {
           await timeTravel.inSecs(COOLDOWN_PERIOD + ONE_HOUR);
           await placeBid(user2, MIN_ZONE_DTH_STAKE + 11, zoneInstance.address);
           await placeBid(user1, 20, zoneInstance.address);
-          await timeTravel.inSecs(BID_PERIOD + ONE_HOUR);
+          await timeTravel.inSecs(bidPeriod + ONE_HOUR);
           await zoneInstance.processState();
 
           const lastAuction = auctionToObj(await zoneInstance.getLastAuction());

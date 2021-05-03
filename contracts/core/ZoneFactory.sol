@@ -1,4 +1,5 @@
-pragma solidity ^0.8.1;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.3;
 
 import "../eip1167/EIP1167CloneFactory.sol";
 
@@ -8,7 +9,7 @@ import "../interfaces/IUsers.sol";
 import "../interfaces/IGeoRegistry.sol";
 import "../interfaces/IZone.sol";
 import "../interfaces/ITeller.sol";
-import "../interfaces/ISettings.sol";
+import "../interfaces/IProtocolController.sol";
 
 contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
     // ------------------------------------------------
@@ -27,11 +28,10 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
     IDetherToken public dth;
     IGeoRegistry public geo;
     IUsers public users;
-    ISettings public protocolSettings;
+    IProtocolController public protocolController;
 
     address public zoneImplementation;
     address public tellerImplementation;
-    address public taxCollector;
 
     // ------------------------------------------------
     //
@@ -97,8 +97,7 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
         address _users,
         address _zoneImplementation,
         address _tellerImplementation,
-        address _taxCollector,
-        address _protocolSettings
+        address _protocolController
     ) {
         require(_dth != address(0), "dth address cannot be 0x0");
         require(_geo != address(0), "geo address cannot be 0x0");
@@ -115,11 +114,10 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
         dth = IDetherToken(_dth);
         geo = IGeoRegistry(_geo);
         users = IUsers(_users);
-        protocolSettings = ISettings(_protocolSettings);
+        protocolController = IProtocolController(_protocolController);
 
         zoneImplementation = _zoneImplementation;
         tellerImplementation = _tellerImplementation;
-        taxCollector = _taxCollector;
 
     }
 
@@ -356,9 +354,8 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
             dthAmount,
             address(dth),
             address(this),
-            taxCollector,
             newTellerAddress,
-            address(protocolSettings)
+            address(protocolController)
         );
         ITeller(newTellerAddress).init(address(geo), newZoneAddress);
 

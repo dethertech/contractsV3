@@ -1,10 +1,11 @@
+require("dotenv").config();
 const HDWalletProvider = require("@truffle/hdwallet-provider");
 const infuraKey = "fj4jll3k.....";
 //
 // const fs = require('fs');
 // const mnemonic = fs.readFileSync(".secret").toString().trim();
-const { MNEMONIC, INFURA_KEY } = process.env;
-
+const { MNEMONIC, INFURA_KEY, BSC_RPC_URL } = process.env;
+console.log(BSC_RPC_URL, MNEMONIC);
 module.exports = {
   networks: {
     development: {
@@ -12,6 +13,13 @@ module.exports = {
       port: 8545,
       network_id: "*", // Match any network id
       gas: 6700000,
+    },
+    bscTestnet: {
+      provider: () => new HDWalletProvider(MNEMONIC, BSC_RPC_URL),
+      network_id: 97,
+      // gas: 6700000,
+      // gasPrice: 10000000000,
+      // skipDryRun: true,
     },
     kovan: {
       provider: () =>
@@ -68,10 +76,13 @@ module.exports = {
   // Configure your compilers
   compilers: {
     solc: {
-      version: "0.8.1",
+      version: "0.8.3",
       optimizer: {
         enabled: true,
         runs: 200,
+      },
+      debug: {
+        revertStrings: "strip",
       },
     },
   },

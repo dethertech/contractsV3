@@ -1,4 +1,5 @@
-pragma solidity ^0.8.1;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.3;
 
 import "../interfaces/IDetherToken.sol";
 import "../interfaces/IUsers.sol";
@@ -200,14 +201,14 @@ contract Shops {
         public
         view
         returns (
-            bytes12,
-            bytes16,
-            bytes16,
-            bytes32,
-            bytes16,
-            uint256,
-            uint256,
-            uint256
+            bytes12 position,
+            bytes16 category,
+            bytes16 name,
+            bytes32 description,
+            bytes16 opening,
+            uint256 staked,
+            uint256 lastTaxTime,
+            uint256 licencePrice
         )
     {
         Shop memory shop = shopAddressToShop[_addr];
@@ -336,7 +337,7 @@ contract Shops {
         uint256 _startTime,
         uint256 _endTime,
         uint256 _licencePrice
-    ) public view returns (uint256 taxAmount) {
+    ) public pure returns (uint256 taxAmount) {
         taxAmount = _licencePrice * (_endTime - _startTime) / TAX / 1 days;
     }
 
@@ -395,7 +396,8 @@ contract Shops {
         address sender = _from;
         uint256 dthAmount = _value;
 
-        bytes1 fn = abi.decode(_data[:1], (bytes1));
+        // bytes1 fn = abi.decode(_data[:1], (bytes1));
+        bytes1 fn = _data[0];
         require(
             fn == bytes1(0x30) || fn == bytes1(0x31),
             "first byte didnt match func shop"
@@ -405,15 +407,40 @@ contract Shops {
             // shop account top up
             _topUp(sender, _value);
         } else if (fn == bytes1(0x30)) {
-            // shop creation
-            (
-                bytes2 country, 
-                bytes12 position, 
-                bytes16 category, 
-                bytes16 name, 
-                bytes32 description, 
-                bytes16 opening
-            ) = abi.decode(_data[1:95], (bytes2, bytes12, bytes16, bytes16, bytes32, bytes16));
+            // // shop creation
+            // (
+            //     bytes2 country, 
+            //     bytes12 position, 
+            //     bytes16 category, 
+            //     bytes16 name, 
+            //     bytes32 description, 
+            //     bytes16 opening
+            // ) = abi.decode(_data[1:95], (bytes2, bytes12, bytes16, bytes16, bytes32, bytes16));
+
+        bytes2 country;
+            bytes12 position;
+            bytes16 category;
+            bytes16 name;
+            bytes32 description;
+            bytes16 opening;
+
+            // country + position + category
+            bytes32 word1 = abi.decode(_data[1:33], (bytes32));
+            country = bytes2(word1);
+            word1 <<= (2 * 8);
+            position = bytes12(word1);
+            word1 <<= (12 * 8);
+            category = bytes16(word1);
+
+            // name + 16 bytes of description
+            bytes32 word2 = abi.decode(_data[31:63], (bytes32));
+            name = bytes16(word2);
+
+            // 16 bytes of description + opening
+            bytes32 word3 = abi.decode(_data[63:], (bytes32));
+            // we have 16 bytes left in word2, so we need to combine these 16 along with 16 from word3
+            description = bytes32(uint256(word2 << (16 * 8)) + uint256(uint128(bytes16(word3))));
+            opening = bytes16(word3 << (16 * 8));
 
             require(geo.zoneIsEnabled(country), "country is disabled");
             require(

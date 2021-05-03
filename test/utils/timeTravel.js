@@ -38,6 +38,18 @@ class TimeTravel {
     });
   }
 
+  async mineBlock() {
+    return new Promise((resolve, reject) => {
+      this.web3.currentProvider.sendAsync({
+        jsonrpc: "2.0",
+        method: "evm_mine",
+        id: 12345
+      }, (e, d) => (
+        e ? reject(e) : resolve(d)
+      ));
+    })
+  }
+
   async inSecs(seconds) {
     await this._evmSend('evm_increaseTime', [seconds]);
     await this._evmSend('evm_mine');

@@ -1,79 +1,43 @@
-pragma solidity ^0.8.1;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.3;
 
 import "../interfaces/IERC223ReceivingContract.sol";
 import "../interfaces/IDetherToken.sol";
 import "../interfaces/IZoneFactory.sol";
 import "../interfaces/IZone.sol";
 import "../interfaces/ITeller.sol";
-import "../interfaces/ISettings.sol";
+import "../interfaces/IProtocolController.sol";
+import "./AuctionUtils.sol";
+import "./FeeTaxHelpers.sol";
+import "./ZoneOwnerUtils.sol";
+import "../libraries/SharedStructs.sol";
 
 contract Zone is IERC223ReceivingContract {
 
-    // ------------------------------------------------
-    //
-    // Enums
-    //
-    // ------------------------------------------------
+    using ZoneOwnerUtils for uint256;
+    using AuctionUtils for AuctionUtils.AuctionDetails;
+    using FeeTaxHelpers for uint256;
 
-    enum AuctionState {Started, Ended}
+    AuctionUtils.AuctionDetails auctions;
 
-    // ------------------------------------------------
-    //
-    // Structs
-    //
-    // ------------------------------------------------
-
-    struct ZoneOwner {
-        address addr;
-        uint256 startTime;
-        uint256 staked;
-        uint256 balance;
-        uint256 lastTaxTime;
-        uint256 auctionId;
-    }
-
-    struct Auction {
-        uint256 startTime;
-        uint256 endTime;
-        AuctionState state;
-        address highestBidder;
-    }
-
-    mapping(uint256 => Auction) private auctionIdToAuction;
     // ------------------------------------------------
     //
     // Variables Public
     //
     // ------------------------------------------------
 
-    uint256 public FLOOR_STAKE_PRICE; // DTH, which is also 18 decimals!
+    uint256 public floorStakePrice; // DTH, which is also 18 decimals!
 
-    uint256 public BID_PERIOD; // mainnet params
-    uint256 public COOLDOWN_PERIOD; // mainnet params
-    uint256 public ENTRY_FEE; // in %
-    uint256 public ZONE_TAX; // 0,04% daily / around 15% yearly
-
-    uint256 public MIN_RAISE; // everybid should be more than x% that the previous highestbid
-
-    // Params public zoneParams;
-    bool private inited;
-
-    IDetherToken public dth;
+    IProtocolController.Params_t public zoneParams;
     IZoneFactory public zoneFactory;
     ITeller public teller;
-    ZoneOwner public zoneOwner;
-    ISettings public protocolSettings;
-    address public taxCollector;
+    ZoneOwnerUtils.ZoneOwner public zoneOwner;
+    IProtocolController public protocolController;
 
     bytes2 public country;
     bytes6 public geohash;
 
     mapping(address => uint256) public withdrawableDth;
-
-    uint256 public currentAuctionId; // starts at 0, first auction will get id 1, etc.
-
-    //      auctionId       bidder     dthAmount
-    mapping(uint256 => mapping(address => uint256)) public auctionBids;
 
     // ------------------------------------------------
     //
@@ -82,7 +46,7 @@ contract Zone is IERC223ReceivingContract {
     // ------------------------------------------------
 
     modifier updateState {
-        _processState();
+        processState();
         _;
     }
 
@@ -113,37 +77,30 @@ contract Zone is IERC223ReceivingContract {
         bytes6 _geohash,
         address _zoneOwner,
         uint256 _dthAmount,
-        address _dth,
+        address /* _dth */,
         address _zoneFactory,
-        address _taxCollector,
         address _teller,
-        address _protocolSettings
+        address _protocolController
     ) external {
-        require(inited == false, "contract already initialized");
-        protocolSettings = ISettings(_protocolSettings);
-        uint256 zonePrice = protocolSettings.getZonePrice(_countryCode);
+        require(address(teller) == address(0), "contract already initialized");
+        protocolController = IProtocolController(_protocolController);
         require(
-            _dthAmount >= zonePrice,
+            _dthAmount >= protocolController.getCountryFloorPrice(_countryCode),
             "DTH staked are not enough for this zone"
         );
 
         country = _countryCode;
         geohash = _geohash;
 
-        dth = IDetherToken(_dth);
         zoneFactory = IZoneFactory(_zoneFactory);
-        taxCollector = _taxCollector;
 
-        zoneOwner.addr = _zoneOwner;
-        zoneOwner.startTime = block.timestamp;
-        zoneOwner.staked = _dthAmount;
-        zoneOwner.balance = _dthAmount;
-        zoneOwner.lastTaxTime = block.timestamp;
-        zoneOwner.auctionId = 0; // was not gained by winning an auction
+        uint256 zoneOwnerPtr;
+        assembly { zoneOwnerPtr := zoneOwner.slot }
+        zoneOwnerPtr.init(_zoneOwner, block.timestamp, _dthAmount, 0);
 
-        inited = true;
-        currentAuctionId = 0;
+        auctions.currentAuctionId = 0;
         teller = ITeller(_teller);
+
         _setParams();
     }
 
@@ -153,101 +110,44 @@ contract Zone is IERC223ReceivingContract {
     //
     // ------------------------------------------------
 
+
+    function getZoneOwner() public view returns (
+        address addr,
+        uint256 startTime,
+        uint256 staked,
+        uint256 balance,
+        uint256 lastTaxTime,
+        uint256 auctionId
+    ) {
+        return (
+            zoneOwner.addr,
+            zoneOwner.startTime,
+            zoneOwner.staked,
+            zoneOwner.balance,
+            zoneOwner.lastTaxTime,
+            zoneOwner.auctionId
+        );
+    }
     function ownerAddr() external view returns (address) {
         return zoneOwner.addr;
     }
 
-    function calcHarbergerTax(
-        uint256 _startTime,
-        uint256 _endTime,
-        uint256 _dthAmount
-    ) public view returns (uint256 taxAmount, uint256 keepAmount) {
-        // TODO use smaller uint variables, hereby preventing under/overflows, so no need for SafeMath
-        // source: https://programtheblockchain.com/posts/2018/09/19/implementing-harberger-tax-deeds/
-        taxAmount = _dthAmount
-            * (_endTime - _startTime)
-            * (ZONE_TAX)
-            / (10000)
-            / (1 days);
-        keepAmount = _dthAmount - taxAmount;
-    }
-
-    function calcEntryFee(uint256 _value)
-        public
-        view
-        returns (uint256 burnAmount, uint256 bidAmount)
-    {
-        burnAmount = _value * ENTRY_FEE / 100; // 4%
-        bidAmount = _value - burnAmount; // 96%
+    function getAuction(uint256 _auctionId) public view returns (AuctionUtils.Auction memory auction, uint256 highestBid) {
+        return auctions.getAuction(_auctionId, zoneOwner.addr, zoneOwner.staked);
     }
 
     function auctionExists(uint256 _auctionId) external view returns (bool) {
         // if aucton does not exist we should get back zero, otherwise this field
         // will contain a block.timestamp, set whe creating an Auction, in constructor() and bid()
-        return auctionIdToAuction[_auctionId].startTime > 0;
+        return auctions.auctionIdToAuction[_auctionId].startTime > 0;
     }
 
-    /// @notice get current zone owner data
-    function getZoneOwner()
-        external
-        view
-        returns (
-            address,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256
-        )
-    {
-        return (
-            zoneOwner.addr, // address of current owner
-            zoneOwner.startTime, // time this address became owner
-            zoneOwner.staked, // "price you sell at"
-            zoneOwner.balance, // will decrease whenever harberger taxes are paid
-            zoneOwner.lastTaxTime, // time until taxes have been paid
-            zoneOwner.auctionId // if gained by winning auction, the auction id, otherwise zero
-        );
+    function currentAuctionId() public view returns (uint256) {
+        return auctions.currentAuctionId;
     }
 
-    /// @notice get a specific auction
-    function getAuction(uint256 _auctionId)
-        public
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            address,
-            uint256
-        )
-    {
-        require(
-            _auctionId > 0 && _auctionId <= currentAuctionId,
-            "auction does not exist"
-        );
-
-        Auction memory auction = auctionIdToAuction[_auctionId];
-
-        uint256 highestBid = auctionBids[_auctionId][auction.highestBidder];
-
-        // If auction is ongoing, for current zone owner his existing zone stake is added to his bid
-        if (
-            auction.state == AuctionState.Started &&
-            auction.highestBidder == zoneOwner.addr
-        ) {
-            highestBid = highestBid + zoneOwner.staked;
-        }
-
-        return (
-            _auctionId,
-            uint256(auction.state),
-            auction.startTime,
-            auction.endTime,
-            auction.highestBidder,
-            highestBid
-        );
+    function auctionBids(uint256 _auctionId, address _user) public view returns (uint256) {
+        return auctions.auctionBids[_auctionId][_user];
     }
 
     /// @notice get the last auction
@@ -255,54 +155,32 @@ contract Zone is IERC223ReceivingContract {
         external
         view
         returns (
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            address,
-            uint256
+            uint256 auctionId,
+            uint256 state,
+            uint256 startTime,
+            uint256 endTime,
+            address highestBidder,
+            uint256 highestBid
         )
     {
-        return getAuction(currentAuctionId);
+        auctionId = auctions.currentAuctionId;
+        AuctionUtils.Auction memory auction;
+        (auction, highestBid) = auctions.getAuction(auctionId, zoneOwner.addr, zoneOwner.staked);
+        state = auction.state;
+        startTime = auction.startTime;
+        endTime = auction.endTime;
+        highestBidder = auction.highestBidder;
     }
 
-    // ------------------------------------------------
-    //
-    // Functions Utils
-    //
-    // ------------------------------------------------
-
-    function toBytes1(bytes memory _bytes, uint256 _start)
-        private
-        pure
-        returns (bytes1)
-    {
-        require(_bytes.length >= (_start + 1), " not long enough");
-        bytes1 tempBytes1;
-
-        assembly {
-            tempBytes1 := mload(add(add(_bytes, 0x20), _start))
-        }
-
-        return tempBytes1;
-    }
-
-    // ------------------------------------------------
-    //
-    // Functions Setters Private
-    //
-    // ------------------------------------------------
-
-    function _setParams(
-    ) private {
-        (uint256 zoneFloorPrice, uint256 bidPeriod, uint256 cooldownPeriod, uint256 entryFee, uint256 zoneTax, uint256 minRaise) = protocolSettings.getParams(country);
-
-        FLOOR_STAKE_PRICE = zoneFloorPrice;
-        BID_PERIOD = bidPeriod;
-        COOLDOWN_PERIOD = cooldownPeriod;
-        ENTRY_FEE = entryFee;
-        ZONE_TAX = zoneTax;
-        MIN_RAISE = minRaise;
+    function _setParams() private {
+        SharedStructs.Params_t memory globalParams = protocolController.getGlobalParams();
+        uint256 zoneFloorPrice = protocolController.getCountryFloorPrice(country);
+        floorStakePrice = zoneFloorPrice;
+        zoneParams.bidPeriod = globalParams.bidPeriod;
+        zoneParams.cooldownPeriod = globalParams.cooldownPeriod;
+        zoneParams.entryFee = globalParams.entryFee;
+        zoneParams.zoneTax = globalParams.zoneTax;
+        zoneParams.minRaise = globalParams.minRaise;
     }
 
     function _removeZoneOwner(bool fromRelease) private {
@@ -328,10 +206,10 @@ contract Zone is IERC223ReceivingContract {
             return; // short-circuit: multiple txes in 1 block OR many blocks but in same Auction
         }
 
-        (uint256 taxAmount, uint256 keepAmount) = calcHarbergerTax(
+        uint256 taxAmount = zoneOwner.staked.calcHarbergerTax(
             zoneOwner.lastTaxTime,
             block.timestamp,
-            zoneOwner.staked
+            zoneParams.zoneTax
         );
 
         if (taxAmount > zoneOwner.balance) {
@@ -339,11 +217,12 @@ contract Zone is IERC223ReceivingContract {
             uint256 oldZoneOwnerBalance = zoneOwner.balance;
             _removeZoneOwner(false);
 
-            require(dth.transfer(taxCollector, oldZoneOwnerBalance));
+            require(protocolController.dth().transfer(address(protocolController), oldZoneOwnerBalance));
         } else {
             // zone owner can pay due taxes
-            zoneOwner.balance = zoneOwner.balance - taxAmount;
-            zoneOwner.lastTaxTime = block.timestamp;
+            uint256 zoneOwnerPtr;
+            assembly { zoneOwnerPtr := zoneOwner.slot }
+            zoneOwnerPtr.payTax(taxAmount);
             (address referrer, uint256 refFee) = teller.getReferrer();
             if (referrer != address(0x00) && refFee > 0) {
                 uint256 referralFee = taxAmount * refFee / 1000;
@@ -354,198 +233,75 @@ contract Zone is IERC223ReceivingContract {
                     referrer,
                     referralFee
                 );
-                address(dth).call(payload);
+                address(protocolController.dth()).call(payload);
 
                 // require(dth.transfer(referrer, referralFee));
-                require(dth.transfer(taxCollector, taxAmount - referralFee));
+                require(protocolController.dth().transfer(address(protocolController), taxAmount - referralFee));
             } else {
-                require(dth.transfer(taxCollector, taxAmount));
+                require(protocolController.dth().transfer(address(protocolController), taxAmount));
             }
         }
     }
 
     /*
-     * Called when auction is ended by _processState()
+     * Called when auction is ended by processState()
      * update the state with new owner and new bid
      */
     function _endAuction() private {
-        Auction storage lastAuction = auctionIdToAuction[currentAuctionId];
+        (uint256 lastAuctionPtr, uint256 highestBid) = auctions.endAuction();
+        AuctionUtils.Auction storage lastAuction;
+        assembly { lastAuction.slot := lastAuctionPtr }
 
-        lastAuction.state = AuctionState.Ended;
+        uint256 zoneOwnerPtr;
+        assembly { zoneOwnerPtr := zoneOwner.slot }
 
-        uint256 highestBid = auctionBids[currentAuctionId][lastAuction
-            .highestBidder];
-        uint256 auctionEndTime = auctionIdToAuction[currentAuctionId].endTime;
-        address highestBidder = lastAuction.highestBidder;
-
-        if (zoneOwner.addr == highestBidder) {
-            // current zone owner won the auction, extend his zone ownershp
-            zoneOwner.staked = zoneOwner.staked + highestBid;
-            zoneOwner.balance = zoneOwner.balance + highestBid;
-
-            // need to set it since it might've been zero
-            zoneOwner.auctionId = currentAuctionId; // the (last) auctionId that gave the zoneOwner zone ownership
+        if (zoneOwner.addr == lastAuction.highestBidder) {
+            zoneOwnerPtr.extendZoneOwnership(highestBid, auctions.currentAuctionId);
         } else {
             // we need to update the zone owner
             _removeZoneOwner(false);
             zoneFactory.changeOwner(
-                highestBidder,
+                lastAuction.highestBidder,
                 zoneOwner.addr,
                 address(this)
             );
-            zoneOwner.addr = highestBidder;
-            zoneOwner.startTime = auctionEndTime;
-            zoneOwner.staked = highestBid; // entry fee is already deducted when user calls bid()
-            zoneOwner.balance = highestBid;
-            zoneOwner.auctionId = currentAuctionId; // the auctionId that gave the zoneOwner zone ownership
+
+            zoneOwnerPtr.init(lastAuction.highestBidder, lastAuction.endTime, highestBid, auctions.currentAuctionId);
         }
 
-        // (new) zone owner needs to pay taxes from the moment he acquires zone ownership until now
-        (uint256 taxAmount, uint256 keepAmount) = calcHarbergerTax(
-            auctionEndTime,
+        zoneOwnerPtr.payTax(zoneOwner.staked.calcHarbergerTax(
+            lastAuction.endTime,
             block.timestamp,
-            zoneOwner.staked
-        );
-        zoneOwner.balance = zoneOwner.balance - taxAmount;
-        zoneOwner.lastTaxTime = block.timestamp;
-        zoneFactory.removeActiveBidder(highestBidder);
+            zoneParams.zoneTax
+        ));
+
+        zoneFactory.removeActiveBidder(lastAuction.highestBidder);
         zoneFactory.removeCurrentZoneBidders();
         zoneFactory.emitAuctionEnded(
             geohash,
-            highestBidder,
-            currentAuctionId,
+            lastAuction.highestBidder,
+            auctions.currentAuctionId,
             highestBid
         );
-        // update zone params if changed
+
         _setParams();
     }
 
-    function processState() external /* onlyByTellerContract */
-    {
-        _processState();
-    }
-
-    /// @notice private function to update the current auction state
-    function _processState() private {
+    /// @notice function to update the current auction state
+    function processState() public {
         if (
-            currentAuctionId > 0 &&
-            auctionIdToAuction[currentAuctionId].state == AuctionState.Started
+            auctions.currentAuctionId > 0 &&
+            auctions.auctionIdToAuction[auctions.currentAuctionId].state == uint256(AuctionUtils.AuctionState.Started)
         ) {
             // while uaction is running, no taxes need to be paid
 
             // handling of taxes around change of zone ownership are handled inside _endAuction
-            if (block.timestamp >= auctionIdToAuction[currentAuctionId].endTime)
+            if (block.timestamp >= auctions.auctionIdToAuction[auctions.currentAuctionId].endTime)
                 _endAuction();
         } else {
             // no running auction, currentAuctionId could be zero
             if (zoneOwner.addr != address(0)) _handleTaxPayment();
         }
-    }
-
-    function _joinAuction(address _sender, uint256 _dthAmount) private {
-        Auction storage lastAuction = auctionIdToAuction[currentAuctionId];
-
-        //------------------------------------------------------------------------------//
-        // there is a running auction, lets see if we can join the auction with our bid //
-        //------------------------------------------------------------------------------//
-
-        require(
-            zoneFactory.activeBidderToZone(_sender) == address(this) ||
-                zoneFactory.activeBidderToZone(_sender) == address(0),
-            "sender is currently involved in another auction"
-        );
-        require(
-            zoneFactory.ownerToZone(_sender) == address(0) ||
-                zoneFactory.ownerToZone(_sender) == address(this),
-            "sender own already another zone"
-        );
-
-        uint256 currentHighestBid = auctionBids[currentAuctionId][lastAuction
-            .highestBidder];
-
-        if (_sender == zoneOwner.addr) {
-            uint256 dthAddedBidsAmount = auctionBids[currentAuctionId][_sender] + _dthAmount;
-            // the current zone owner's stake also counts in his bid
-            require(
-                zoneOwner.staked + dthAddedBidsAmount >=
-                currentHighestBid + currentHighestBid * MIN_RAISE / 100,
-                "bid + already staked is less than current highest + MIN_RAISE"
-            );
-
-            auctionBids[currentAuctionId][_sender] = dthAddedBidsAmount;
-        } else {
-            // _sender is not the current zone owner
-            if (auctionBids[currentAuctionId][_sender] == 0) {
-                // this is the first bid of this challenger, deduct entry fee
-                (uint256 burnAmount, uint256 bidAmount) = calcEntryFee(
-                    _dthAmount
-                );
-                require(
-                    bidAmount >=
-                    currentHighestBid + currentHighestBid * MIN_RAISE / 100,
-                    "bid is less than current highest + MIN_RAISE"
-                );
-
-                auctionBids[currentAuctionId][_sender] = bidAmount;
-                require(dth.transfer(taxCollector, burnAmount));
-            } else {
-                // not the first bid, no entry fee
-                uint256 newUserTotalBid = auctionBids[currentAuctionId][_sender] + _dthAmount;
-                require(
-                    newUserTotalBid >=
-                    currentHighestBid + currentHighestBid * MIN_RAISE / 100,
-                    "bid is less than current highest + MIN_RAISE"
-                );
-
-                auctionBids[currentAuctionId][_sender] = newUserTotalBid;
-            }
-        }
-
-        // it worked, _sender placed a bid
-        lastAuction.highestBidder = _sender;
-        zoneFactory.fillCurrentZoneBidder(_sender);
-        zoneFactory.emitBid(geohash, _sender, currentAuctionId, _dthAmount);
-    }
-
-    function _createAuction(address _sender, uint256 _dthAmount) private {
-        require(
-            zoneFactory.activeBidderToZone(_sender) == address(0),
-            "sender is currently involved in an auction (Zone)"
-        );
-        require(
-            zoneFactory.ownerToZone(_sender) == address(0),
-            "sender own already a zone"
-        );
-
-        (uint256 burnAmount, uint256 bidAmount) = calcEntryFee(_dthAmount);
-        require(
-            bidAmount >
-            zoneOwner.staked + zoneOwner.staked * MIN_RAISE / 100,
-            "bid is lower than current zone stake"
-        );
-
-        // save the new Auction
-        uint256 newAuctionId = ++currentAuctionId;
-
-        auctionIdToAuction[newAuctionId] = Auction({
-            state: AuctionState.Started,
-            startTime: block.timestamp,
-            endTime: block.timestamp + BID_PERIOD,
-            highestBidder: _sender // caller (challenger)
-        });
-
-        auctionBids[newAuctionId][_sender] = bidAmount;
-
-        require(dth.transfer(taxCollector, burnAmount));
-        //
-        zoneFactory.fillCurrentZoneBidder(_sender);
-        zoneFactory.fillCurrentZoneBidder(zoneOwner.addr);
-        zoneFactory.emitAuctionCreated(
-            geohash,
-            _sender,
-            newAuctionId,
-            _dthAmount
-        );
     }
 
     /// @notice private function to update the current auction state
@@ -554,27 +310,46 @@ contract Zone is IERC223ReceivingContract {
         uint256 _dthAmount // GAS COST +/- 223.689
     ) private onlyWhenZoneHasOwner {
         if (
-            currentAuctionId > 0 &&
-            auctionIdToAuction[currentAuctionId].state == AuctionState.Started
+            auctions.currentAuctionId > 0 &&
+            auctions.auctionIdToAuction[auctions.currentAuctionId].state == uint256(AuctionUtils.AuctionState.Started)
         ) {
-            _joinAuction(_sender, _dthAmount);
+            auctions.joinAuction(
+                _sender,
+                _dthAmount,
+                geohash,
+                zoneOwner.addr,
+                zoneOwner.staked,
+                protocolController,
+                zoneParams,
+                zoneFactory
+            );
         } else {
             // there currently is no running auction
             if (zoneOwner.auctionId == 0) {
                 // current zone owner did not become owner by winning an auction, but by creating this zone or caliming it when it was free
                 require(
-                    block.timestamp > zoneOwner.startTime + COOLDOWN_PERIOD,
+                    block.timestamp > zoneOwner.startTime + zoneParams.cooldownPeriod,
                     "cooldown period did not end yet"
                 );
             } else {
                 // current zone owner became owner by winning an auction (which has ended)
                 require(
                     block.timestamp >
-                    auctionIdToAuction[currentAuctionId].endTime + COOLDOWN_PERIOD,
+                    auctions.auctionIdToAuction[auctions.currentAuctionId].endTime + zoneParams.cooldownPeriod,
                     "cooldown period did not end yet"
                 );
             }
-            _createAuction(_sender, _dthAmount);
+
+            auctions.createAuction(
+                _sender,
+                _dthAmount,
+                geohash,
+                zoneOwner.addr,
+                zoneOwner.staked,
+                protocolController,
+                zoneParams,
+                zoneFactory
+            );
         }
     }
 
@@ -583,8 +358,9 @@ contract Zone is IERC223ReceivingContract {
         uint256 _dthAmount // GAS COSt +/- 177.040
     ) private onlyWhenZoneHasNoOwner {
         _setParams();
+
         require(
-            _dthAmount >= FLOOR_STAKE_PRICE,
+            _dthAmount >= floorStakePrice,
             "need at least minimum zone stake amount (100 DTH)"
         );
         require(
@@ -598,30 +374,23 @@ contract Zone is IERC223ReceivingContract {
 
         // NOTE: empty zone claim will not have entry fee deducted, its not bidding it's taking immediately
         zoneFactory.changeOwner(_sender, zoneOwner.addr, address(this));
-        zoneOwner.addr = _sender;
-        zoneOwner.startTime = block.timestamp;
-        zoneOwner.staked = _dthAmount;
-        zoneOwner.balance = _dthAmount;
-        zoneOwner.lastTaxTime = block.timestamp;
-        zoneOwner.auctionId = 0; // since it was not gained wby winning an auction
+        uint256 zoneOwnerPtr;
+        assembly { zoneOwnerPtr := zoneOwner.slot }
+        zoneOwnerPtr.init(_sender, block.timestamp, _dthAmount, 0);
         zoneFactory.emitClaimFreeZone(geohash, _sender, _dthAmount);
     }
 
     function _topUp(
-        address _sender,
         uint256 _dthAmount // GAS COST +/- 104.201
     ) private onlyWhenZoneHasOwner {
-        // require(_sender == zoneOwner.addr, "caller is not zoneowner");
         require(
-            currentAuctionId == 0 ||
-                auctionIdToAuction[currentAuctionId].state ==
-                AuctionState.Ended,
+            auctions.currentAuctionId == 0 ||
+                auctions.auctionIdToAuction[auctions.currentAuctionId].state ==
+                uint256(AuctionUtils.AuctionState.Ended),
             "cannot top up while auction running"
         );
 
-        uint256 oldBalance = zoneOwner.balance;
-        uint256 newBalance = oldBalance + _dthAmount;
-        zoneOwner.balance = newBalance;
+        zoneOwner.balance += _dthAmount;
 
         // a zone owner can currently keep calling this to increase his dth balance inside the zone
         // without a change in his sell price (= zone.staked) or tax amount he needs to pay
@@ -642,18 +411,18 @@ contract Zone is IERC223ReceivingContract {
         uint256 _value,
         bytes memory _data // onlyWhenZoneEnabled
     ) public override {
-        require(inited == true, "contract not yet initialized");
+        require(address(teller) != address(0), "contract not yet initialized");
         require(
-            msg.sender == address(dth),
+            msg.sender == address(protocolController.dth()),
             "can only be called by dth contract"
         );
         // require caller neither zone owner, neither active bidder
 
-        bytes1 func = toBytes1(_data, 0);
+        bytes1 func = _data[0];
 
         // require(func == bytes1(0x40) || func == bytes1(0x41) || func == bytes1(0x42) || func == bytes1(0x43), "did not match Zone function");
 
-        _processState();
+        processState();
 
         if (func == bytes1(0x41)) {
             // claimFreeZone
@@ -663,7 +432,7 @@ contract Zone is IERC223ReceivingContract {
             _bid(_from, _value);
         } else if (func == bytes1(0x43)) {
             // topUp
-            _topUp(_from, _value);
+            _topUp(_value);
         }
     }
 
@@ -678,9 +447,9 @@ contract Zone is IERC223ReceivingContract {
         // allow also when country is disabled, otherwise no way for zone owner to get their eth/dth back
 
         require(
-            currentAuctionId == 0 ||
-                auctionIdToAuction[currentAuctionId].state ==
-                AuctionState.Ended,
+            auctions.currentAuctionId == 0 ||
+                auctions.auctionIdToAuction[auctions.currentAuctionId].state ==
+                uint256(AuctionUtils.AuctionState.Ended),
             "cannot release while auction running"
         );
 
@@ -691,7 +460,7 @@ contract Zone is IERC223ReceivingContract {
         // if msg.sender is a contract, the DTH ERC223 contract will try to call tokenFallback
         // on msg.sender, this could lead to a reentrancy. But we prevent this by resetting
         // zoneOwner before we do dth.transfer(msg.sender)
-        require(dth.transfer(msg.sender, ownerBalance));
+        require(protocolController.dth().transfer(msg.sender, ownerBalance));
         zoneFactory.emitReleaseZone(geohash, msg.sender);
     }
 
@@ -702,78 +471,14 @@ contract Zone is IERC223ReceivingContract {
     function withdrawFromAuction(
         uint256 _auctionId // GAS COST +/- 125.070
     ) external updateState {
-        // even when country is disabled, otherwise users cannot withdraw their bids
-        require(
-            _auctionId > 0 && _auctionId <= currentAuctionId,
-            "auctionId does not exist"
-        );
-
-        require(
-            auctionIdToAuction[_auctionId].state == AuctionState.Ended,
-            "cannot withdraw while auction is active"
-        );
-        require(
-            auctionIdToAuction[_auctionId].highestBidder != msg.sender,
-            "auction winner can not withdraw"
-        );
-        require(auctionBids[_auctionId][msg.sender] > 0, "nothing to withdraw");
-
-        uint256 withdrawAmount = auctionBids[_auctionId][msg.sender];
-        auctionBids[_auctionId][msg.sender] = 0;
-        if (withdrawableDth[msg.sender] > 0) {
-            withdrawAmount = withdrawAmount + withdrawableDth[msg.sender];
-            withdrawableDth[msg.sender] = 0;
-        }
-        zoneFactory.removeActiveBidder(msg.sender);
-        require(dth.transfer(msg.sender, withdrawAmount));
+        auctions.withdrawFromAuction(_auctionId, protocolController.dth(), withdrawableDth, zoneFactory);
     }
 
     /// @notice withdraw from a given list of auction ids
     function withdrawFromAuctions(
         uint256[] calldata _auctionIds // GAS COST +/- 127.070
     ) external updateState {
-        // even when country is disabled, can withdraw
-        require(currentAuctionId > 0, "there are no auctions");
-
-        require(_auctionIds.length > 0, "auctionIds list is empty");
-        require(
-            _auctionIds.length <= currentAuctionId,
-            "auctionIds list is longer than allowed"
-        );
-
-        uint256 withdrawAmountTotal = 0;
-
-        for (uint256 idx = 0; idx < _auctionIds.length; idx++) {
-            uint256 auctionId = _auctionIds[idx];
-            require(
-                auctionId > 0 && auctionId <= currentAuctionId,
-                "auctionId does not exist"
-            );
-            require(
-                auctionIdToAuction[auctionId].state == AuctionState.Ended,
-                "cannot withdraw from running auction"
-            );
-            require(
-                auctionIdToAuction[auctionId].highestBidder != msg.sender,
-                "auction winner can not withdraw"
-            );
-            uint256 withdrawAmount = auctionBids[auctionId][msg.sender];
-            if (withdrawAmount > 0) {
-                // if user supplies the same auctionId multiple times in auctionIds,
-                // only the first one will get a withdrawal amount
-                auctionBids[auctionId][msg.sender] = 0;
-                withdrawAmountTotal = withdrawAmountTotal + withdrawAmount;
-            }
-        }
-        if (withdrawableDth[msg.sender] > 0) {
-            withdrawAmountTotal = withdrawAmountTotal + withdrawableDth[msg.sender];
-            withdrawableDth[msg.sender] = 0;
-        }
-        zoneFactory.removeActiveBidder(msg.sender);
-
-        require(withdrawAmountTotal > 0, "nothing to withdraw");
-
-        require(dth.transfer(msg.sender, withdrawAmountTotal));
+        auctions.withdrawFromAuctions(_auctionIds, protocolController.dth(), withdrawableDth, zoneFactory);
     }
 
     // - bids in past auctions
@@ -784,7 +489,7 @@ contract Zone is IERC223ReceivingContract {
         zoneFactory.removeActiveBidder(msg.sender);
         if (dthWithdraw > 0) {
             withdrawableDth[msg.sender] = 0;
-            require(dth.transfer(msg.sender, dthWithdraw));
+            require(protocolController.dth().transfer(msg.sender, dthWithdraw));
         }
     }
 }
