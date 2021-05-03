@@ -10,7 +10,6 @@ import "../interfaces/IProtocolController.sol";
 import "./AuctionUtils.sol";
 import "./FeeTaxHelpers.sol";
 import "./ZoneOwnerUtils.sol";
-import "../libraries/SharedStructs.sol";
 
 contract Zone is IERC223ReceivingContract {
 
@@ -22,13 +21,27 @@ contract Zone is IERC223ReceivingContract {
 
     // ------------------------------------------------
     //
+    // Structs
+    //
+    // ------------------------------------------------
+
+    // same as IProtocolController.GlobalParams, except floorStakePrice, which is per-zone
+    struct ZoneParams {
+        uint256 bidPeriod;             // Time during everyon can bid, when an auction is opened
+        uint256 cooldownPeriod;        // Time when no auction can be opened after an auction end
+        uint256 entryFee;              // Amount needed to be paid when starting an auction
+        uint256 zoneTax;               // Amount of taxes raised
+        uint256 minRaise;
+        uint256 floorStakePrice;
+    }
+
+    // ------------------------------------------------
+    //
     // Variables Public
     //
     // ------------------------------------------------
 
-    uint256 public floorStakePrice; // DTH, which is also 18 decimals!
-
-    IProtocolController.Params_t public zoneParams;
+    ZoneParams public zoneParams;
     IZoneFactory public zoneFactory;
     ITeller public teller;
     ZoneOwnerUtils.ZoneOwner public zoneOwner;
@@ -173,9 +186,8 @@ contract Zone is IERC223ReceivingContract {
     }
 
     function _setParams() private {
-        SharedStructs.Params_t memory globalParams = protocolController.getGlobalParams();
-        uint256 zoneFloorPrice = protocolController.getCountryFloorPrice(country);
-        floorStakePrice = zoneFloorPrice;
+        IProtocolController.GlobalParams memory globalParams = protocolController.getGlobalParams();
+        zoneParams.floorStakePrice = protocolController.getCountryFloorPrice(country);
         zoneParams.bidPeriod = globalParams.bidPeriod;
         zoneParams.cooldownPeriod = globalParams.cooldownPeriod;
         zoneParams.entryFee = globalParams.entryFee;
@@ -360,7 +372,7 @@ contract Zone is IERC223ReceivingContract {
         _setParams();
 
         require(
-            _dthAmount >= floorStakePrice,
+            _dthAmount >= zoneParams.floorStakePrice,
             "need at least minimum zone stake amount (100 DTH)"
         );
         require(

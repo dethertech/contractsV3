@@ -40,7 +40,7 @@ abstract contract IZone {
     function ownerAddr() external virtual view returns (address);
 
     function computeCSC(bytes6 _geohash, address _addr)
-        external 
+        external
         virtual
         pure
         returns (bytes12);
@@ -52,7 +52,7 @@ abstract contract IZone {
     ) public virtual view returns (uint256 taxAmount, uint256 keepAmount);
 
     function calcEntryFee(uint256 _value)
-        external 
+        external
         virtual
         view
         returns (uint256 burnAmount, uint256 bidAmount);
@@ -60,7 +60,7 @@ abstract contract IZone {
     function auctionExists(uint256 _auctionId) external virtual view returns (bool);
 
     function zoneOwner()
-        external 
+        external
         virtual
         view
         returns (
@@ -73,7 +73,7 @@ abstract contract IZone {
         );
 
     function getAuction(uint256 _auctionId)
-        external 
+        external
         virtual
         view
         returns (
@@ -86,7 +86,7 @@ abstract contract IZone {
         );
 
     function getLastAuction()
-        external 
+        external
         virtual
         view
         returns (
