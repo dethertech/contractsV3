@@ -60,7 +60,6 @@ contract Voting {
 
     address public manager;
 
-
     // ------------------------------------------------
     //
     // Events
