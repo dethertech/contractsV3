@@ -2,6 +2,8 @@
 /* global artifacts, contract */
 /* eslint-disable max-len, no-multi-spaces, no-unused-expressions */
 
+const { expectEvent } = require('@openzeppelin/test-helpers');
+
 const DetherToken = artifacts.require("DetherToken");
 const Users = artifacts.require("Users");
 const CertifierRegistry = artifacts.require("CertifierRegistry");
@@ -1188,6 +1190,71 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
             votingInstance.execute(1, { from: user3 }),
             'proposal already executed'
           )
+        });
+
+        it("can execute even if there is not enough dth in ProtocolController", async () => {
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.SendDth,
+            encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(5)]),
+            { from: user2 }
+          );
+          await votingInstance.placeVote(1, true, { from: user1 });
+          await votingInstance.placeVote(1, false, { from: user2 });
+          await votingInstance.placeVote(1, false, { from: user3 });
+          await votingInstance.placeVote(1, true, { from: user4 });
+          await votingInstance.placeVote(1, true, { from: user5 });
+
+          await votingInstance.placeVote(2, true, { from: user1 });
+          await votingInstance.placeVote(2, false, { from: user2 });
+          await votingInstance.placeVote(2, false, { from: user3 });
+          await votingInstance.placeVote(2, true, { from: user4 });
+          await votingInstance.placeVote(2, true, { from: user5 });
+          // casted votes = 70% yea, 30% nay
+          // possible votes = 70% yea
+
+          let proposal = await votingInstance.getProposal(1);
+          expect(proposal.open).to.equal(true);
+          expect(proposal.executed).to.equal(false);
+
+          proposal = await votingInstance.getProposal(2);
+          expect(proposal.open).to.equal(true);
+          expect(proposal.executed).to.equal(false);
+
+          await timeTravel.inSecs(7*24*60*60);
+
+          const oldProtocolControllerBalanceDth = (await dthInstance.balanceOf(protocolControllerInstance.address)).toString();
+          const oldUser6BalanceDth = (await dthInstance.balanceOf(user6)).toString();
+          expect(oldProtocolControllerBalanceDth.toString()).to.equal(ethToWei(7));
+          expect(oldUser6BalanceDth.toString()).to.equal(ethToWei(0));
+
+          proposal = await votingInstance.getProposal(1);
+          expect(proposal.open).to.equal(false);
+          expect(proposal.executed).to.equal(false);
+
+          await votingInstance.execute(1, { from: user3 });
+
+          proposal = await votingInstance.getProposal(1);
+          expect(proposal.open).to.equal(false);
+          expect(proposal.executed).to.equal(true);
+
+          const newProtocolControllerBalanceDth_1 = (await dthInstance.balanceOf(protocolControllerInstance.address)).toString();
+          const newUser6BalanceDth_1 = (await dthInstance.balanceOf(user6)).toString();
+          expect(newProtocolControllerBalanceDth_1.toString()).to.equal(ethToWei(1));
+          expect(newUser6BalanceDth_1.toString()).to.equal(ethToWei(6));
+
+          // there is not enough Dth left in ProtocolController, however the execute call will still succeed
+          const tx = await votingInstance.execute(2, { from: user3 });
+          // a special evne twill be emitted to indicate the dth transfer failed
+          await expectEvent.inTransaction(tx.receipt.transactionHash, protocolControllerInstance, 'WithdrawDthTransferFailed', { recipient: user6, amount: ethToWei(5) });
+
+          proposal = await votingInstance.getProposal(2);
+          expect(proposal.open).to.equal(false);
+          expect(proposal.executed).to.equal(true);
+
+          const newProtocolControllerBalanceDth_2 = (await dthInstance.balanceOf(protocolControllerInstance.address)).toString();
+          const newUser6BalanceDth_2 = (await dthInstance.balanceOf(user6)).toString();
+          expect(newProtocolControllerBalanceDth_2.toString()).to.equal(ethToWei(1));
+          expect(newUser6BalanceDth_2.toString()).to.equal(ethToWei(6));
         });
       });
     });

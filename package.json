@@ -25,6 +25,7 @@
     "truffle": "^5.1.52"
   },
   "devDependencies": {
+    "@openzeppelin/test-helpers": "^0.5.11",
     "bignum": "^0.13.1",
     "bignumber.js": "^9.0.1",
     "chai": "^4.2.0",

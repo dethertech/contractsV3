@@ -49,6 +49,8 @@ contract ProtocolController is IProtocolController, IERC223ReceivingContract {
     event UpdatedGlobalParams(uint256 bidPeriod, uint256 cooldownPeriod, uint256 entryFee, uint256 zoneTax, uint256 minRaise);
     event WithdrawDth(address recipient, uint256 amount, string id);
 
+    event WithdrawDthTransferFailed(address indexed recipient, uint amount);
+
     constructor(address _dth, address _voting, address _geoRegistry) {
         require(_dth != address(0), "_dth is address(0)");
         require(_voting != address(0), "_voting is address(0)");
@@ -135,11 +137,18 @@ contract ProtocolController is IProtocolController, IERC223ReceivingContract {
         require(_amount <= dth.balanceOf(address(this)), "amount is bigger than available dth");
     }
 
-    function withdrawDth(address recipient, uint256 amount, string calldata id) public override  {
+    function withdrawDth(address _recipient, uint256 _amount, string calldata _id) public override  {
         _onlyVoting();
-        require(amount <= dth.balanceOf(address(this)), "not enough dth in protocolController");
-        dth.transfer(recipient, amount);
-        emit WithdrawDth(recipient, amount, id);
+
+        // to avoid Dos with revert in case recipient is a contract, or not enough dth in this contract
+        bytes memory payload = abi.encodeWithSignature(
+            "transfer(address,uint256)",
+            _recipient,
+            _amount
+        );
+        (bool success, ) = address(dth).call(payload);
+        if (!success) emit WithdrawDthTransferFailed(_recipient, _amount);
+        else emit WithdrawDth(_recipient, _amount, _id);
     }
 
     // ------------------------------------------------
