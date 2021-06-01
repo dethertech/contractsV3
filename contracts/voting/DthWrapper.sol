@@ -1,13 +1,16 @@
 pragma solidity ^0.8.1;
 
-import "../interfaces/IDetherToken.sol";
+import "../interfaces/IAnyswapV3ERC20.sol";
+import "../interfaces/ITransferReceiver.sol";
 import "../interfaces/IERC223ReceivingContract.sol";
 import "./CheckpointingLib.sol";
 
-contract DthWrapper is IERC223ReceivingContract {
+// contract DthWrapper is IERC223ReceivingContract {
+
+contract DthWrapper is ITransferReceiver {
     using Checkpointing for Checkpointing.History;
 
-    IDetherToken public dthToken;
+    IAnyswapV3ERC20 public dthToken;
 
     mapping(address => Checkpointing.History) internal balancesHistory;
     Checkpointing.History internal totalSupplyHistory;
@@ -17,7 +20,7 @@ contract DthWrapper is IERC223ReceivingContract {
 
     constructor(address _dthToken) {
         require(_dthToken != address(0), "_dthToken is address(0))");
-        dthToken = IDetherToken(_dthToken);
+        dthToken = IAnyswapV3ERC20(_dthToken);
     }
 
     //
@@ -33,6 +36,7 @@ contract DthWrapper is IERC223ReceivingContract {
 
         emit Deposit(_from, _amount);
     }
+
     function deposit(uint256 _amount) external {
         require(_amount > 0, "amount is zero");
 
@@ -40,13 +44,19 @@ contract DthWrapper is IERC223ReceivingContract {
 
         _deposit(msg.sender, _amount);
     }
-    function tokenFallback(address _from, uint256 _value, bytes memory) public override {
-        require(_value > 0, "tokenFallback value is zero");
+
+    function onTokenTransfer(
+        address _from,
+        uint256 _value,
+        bytes memory
+    ) public override returns (bool) {
+        require(_value > 0, "onTokenTransfer value is zero");
         require(
             msg.sender == address(dthToken),
             "can only be called by dth contract"
         );
         _deposit(_from, _value);
+        return (true);
     }
 
     //
@@ -73,10 +83,20 @@ contract DthWrapper is IERC223ReceivingContract {
     function balanceOf(address _owner) public view returns (uint256) {
         return _balanceOfAt(_owner, block.number);
     }
-    function balanceOfAt(address _owner, uint256 _blockNumber) public view returns (uint256) {
+
+    function balanceOfAt(address _owner, uint256 _blockNumber)
+        public
+        view
+        returns (uint256)
+    {
         return _balanceOfAt(_owner, _blockNumber);
     }
-    function _balanceOfAt(address _owner, uint256 _blockNumber) internal view returns (uint256) {
+
+    function _balanceOfAt(address _owner, uint256 _blockNumber)
+        internal
+        view
+        returns (uint256)
+    {
         return balancesHistory[_owner].getValueAt(uint64(_blockNumber));
     }
 
@@ -86,10 +106,16 @@ contract DthWrapper is IERC223ReceivingContract {
     function totalSupply() public view returns (uint256) {
         return _totalSupplyAt(block.number);
     }
+
     function totalSupplyAt(uint256 _blockNumber) public view returns (uint256) {
         return _totalSupplyAt(_blockNumber);
     }
-    function _totalSupplyAt(uint256 _blockNumber) internal view returns (uint256) {
+
+    function _totalSupplyAt(uint256 _blockNumber)
+        internal
+        view
+        returns (uint256)
+    {
         return totalSupplyHistory.getValueAt(uint64(_blockNumber));
     }
 }

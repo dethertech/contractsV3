@@ -3,6 +3,7 @@
 /* eslint-disable max-len, no-multi-spaces, no-unused-expressions */
 
 const DetherToken = artifacts.require("DetherToken");
+const AnyswapV4ERC20 = artifacts.require("AnyswapV4ERC20");
 const Users = artifacts.require("Users");
 const CertifierRegistry = artifacts.require("CertifierRegistry");
 const GeoRegistry = artifacts.require("GeoRegistry");
@@ -19,7 +20,13 @@ const BN = Web3.utils.BN;
 const expect = require("./utils/chai");
 const TimeTravel = require("./utils/timeTravel");
 const { addCountry } = require("./utils/geo");
-const { ethToWei, asciiToHex, str, weiToEth, toVotingPerc } = require("./utils/convert");
+const {
+  ethToWei,
+  asciiToHex,
+  str,
+  weiToEth,
+  toVotingPerc,
+} = require("./utils/convert");
 const {
   expectRevert,
   expectRevert2,
@@ -65,7 +72,7 @@ const createDthZoneCreateData = (
   geohash
 ) => {
   const fnSig = web3.eth.abi.encodeFunctionSignature(
-    "transfer(address,uint256,bytes)"
+    "transferAndCall(address,uint256,bytes)"
   );
   const params = web3.eth.abi.encodeParameters(
     ["address", "uint256", "bytes"],
@@ -85,7 +92,7 @@ const createDthZoneCreateDataWithTier = (
   tier
 ) => {
   const fnSig = web3.eth.abi.encodeFunctionSignature(
-    "transfer(address,uint256,bytes)"
+    "transferAndCall(address,uint256,bytes)"
   );
   const params = web3.eth.abi.encodeParameters(
     ["address", "uint256", "bytes"],
@@ -99,7 +106,7 @@ const createDthZoneCreateDataWithTier = (
 };
 const createDthZoneClaimFreeData = (zoneFactoryAddr, dthAmount) => {
   const fnSig = web3.eth.abi.encodeFunctionSignature(
-    "transfer(address,uint256,bytes)"
+    "transferAndCall(address,uint256,bytes)"
   );
   const params = web3.eth.abi.encodeParameters(
     ["address", "uint256", "bytes"],
@@ -109,7 +116,7 @@ const createDthZoneClaimFreeData = (zoneFactoryAddr, dthAmount) => {
 };
 const createDthZoneBidData = (zoneAddr, bid) => {
   const fnSig = web3.eth.abi.encodeFunctionSignature(
-    "transfer(address,uint256,bytes)"
+    "transferAndCall(address,uint256,bytes)"
   );
   const params = web3.eth.abi.encodeParameters(
     ["address", "uint256", "bytes"],
@@ -119,7 +126,7 @@ const createDthZoneBidData = (zoneAddr, bid) => {
 };
 const createDthZoneTopUpData = (zoneAddr, dthAmount) => {
   const fnSig = web3.eth.abi.encodeFunctionSignature(
-    "transfer(address,uint256,bytes)"
+    "transferAndCall(address,uint256,bytes)"
   );
   const params = web3.eth.abi.encodeParameters(
     ["address", "uint256", "bytes"],
@@ -187,6 +194,7 @@ contract("ZoneFactory + Zone", (accounts) => {
   let __rootState__; // eslint-disable-line no-underscore-dangle
 
   let dthInstance;
+  let tempDthInstance;
   let usersInstance;
   let geoInstance;
   let zoneFactoryInstance;
@@ -203,22 +211,52 @@ contract("ZoneFactory + Zone", (accounts) => {
 
   beforeEach(async () => {
     await timeTravel.revertState(__rootState__); // to go back to real time
-    dthInstance = await DetherToken.new({ from: owner });
+
+    // create temp dthTokens
+    tempDthInstance = await DetherToken.new({ from: owner });
+    await tempDthInstance.mint(owner, web3.utils.toWei("1000000", "ether"), {
+      from: owner,
+    });
+    // create dth from anyV4 token
+    dthInstance = await AnyswapV4ERC20.new(
+      "ANYDTH",
+      "DTH",
+      18,
+      tempDthInstance.address,
+      owner,
+      { from: owner }
+    );
+    await tempDthInstance.approve(
+      dthInstance.address,
+      web3.utils.toWei("1000000", "ether")
+    );
+
+    // dthInstance = await DetherToken.new({ from: owner });
     certifierRegistryInstance = await CertifierRegistry.new({ from: owner });
     geoInstance = await GeoRegistry.new({ from: owner });
 
     taxFeeHelperInstance = await FeeTaxHelpers.new();
-    dthWrapperInstance = await DthWrapper.new(dthInstance.address, { from: owner });
+    dthWrapperInstance = await DthWrapper.new(dthInstance.address, {
+      from: owner,
+    });
     votingInstance = await Voting.new(
       dthWrapperInstance.address,
       toVotingPerc(25), // % of possible votes
       toVotingPerc(60), // % of casted votes
-      ethToWei(1),     // 1 DTH
-      7*24*60*60,       // 7 days
+      ethToWei(1), // 1 DTH
+      7 * 24 * 60 * 60, // 7 days
       { from: owner }
     );
-    protocolControllerInstance = await ProtocolController.new(dthInstance.address, votingInstance.address, geoInstance.address, { from: owner });
-    await votingInstance.setProtocolController(protocolControllerInstance.address, { from: owner });
+    protocolControllerInstance = await ProtocolController.new(
+      dthInstance.address,
+      votingInstance.address,
+      geoInstance.address,
+      { from: owner }
+    );
+    await votingInstance.setProtocolController(
+      protocolControllerInstance.address,
+      { from: owner }
+    );
     usersInstance = await Users.new(
       geoInstance.address,
       certifierRegistryInstance.address,
@@ -256,8 +294,11 @@ contract("ZoneFactory + Zone", (accounts) => {
   });
 
   const createZone = async (from, dthAmount, countryCode, geohash) => {
-    await dthInstance.mint(from, ethToWei(dthAmount), { from: owner });
-
+    console.log("test createZone");
+    const tx = await dthInstance.deposit(ethToWei(dthAmount), from, {
+      from: owner,
+    });
+    console.log("tx create zone", tx);
     const txCreate = await web3.eth.sendTransaction({
       from,
       to: dthInstance.address,
@@ -270,7 +311,7 @@ contract("ZoneFactory + Zone", (accounts) => {
       value: 0,
       gas: 4700000,
     });
-
+    console.log("txCreate", txCreate);
     const zoneAddress = await zoneFactoryInstance.geohashToZone(
       asciiToHex(geohash)
     );
@@ -282,7 +323,7 @@ contract("ZoneFactory + Zone", (accounts) => {
   };
 
   const placeBid = async (from, dthAmount, zoneAddress) => {
-    await dthInstance.mint(from, ethToWei(dthAmount), { from: owner });
+    await dthInstance.deposit(ethToWei(dthAmount), from, { from: owner });
     const tx = await web3.eth.sendTransaction({
       from,
       to: dthInstance.address,
@@ -294,7 +335,7 @@ contract("ZoneFactory + Zone", (accounts) => {
   };
 
   const claimFreeZone = async (from, dthAmount, zoneAddress) => {
-    await dthInstance.mint(from, ethToWei(dthAmount), { from: owner });
+    await dthInstance.deposit(ethToWei(dthAmount), from, { from: owner });
     const tx = await web3.eth.sendTransaction({
       from,
       to: dthInstance.address,
@@ -306,7 +347,7 @@ contract("ZoneFactory + Zone", (accounts) => {
   };
 
   const topUp = async (from, dthAmount, zoneAddress) => {
-    await dthInstance.mint(from, ethToWei(dthAmount), { from: owner });
+    await dthInstance.deposit(ethToWei(dthAmount), from, { from: owner });
     const tx = await web3.eth.sendTransaction({
       from,
       to: dthInstance.address,
@@ -388,7 +429,15 @@ contract("ZoneFactory + Zone", (accounts) => {
 
       it("should succeed otherwise", async () => {
         await enableAndLoadCountry(COUNTRY_CG);
-        await dthInstance.mint(user1, ethToWei(MIN_ZONE_DTH_STAKE), {
+        await tempDthInstance.transfer(user1, ethToWei(MIN_ZONE_DTH_STAKE), {
+          from: owner,
+        });
+        await tempDthInstance.approve(
+          dthInstance.address,
+          ethToWei(MIN_ZONE_DTH_STAKE),
+          { from: user1 }
+        );
+        await dthInstance.deposit(ethToWei(MIN_ZONE_DTH_STAKE), user1, {
           from: owner,
         });
         await web3.eth.sendTransaction({
@@ -432,9 +481,8 @@ contract("ZoneFactory + Zone", (accounts) => {
         expect(zoneInstance.auctionExists("1")).to.eventually.be.false;
 
         const zoneOwner = zoneOwnerToObj(await zoneInstance.getZoneOwner());
-        const zoneFactoryGeohashZoneOwner = await zoneFactoryInstance.ownerToZone(
-          zoneOwner.addr
-        );
+        const zoneFactoryGeohashZoneOwner =
+          await zoneFactoryInstance.ownerToZone(zoneOwner.addr);
         const lastBlockTimestamp = await getLastBlockTimestamp();
 
         expect(zoneAddress).to.equal(zoneFactoryGeohashZoneOwner);
@@ -492,28 +540,24 @@ contract("ZoneFactory + Zone", (accounts) => {
           const zoneAddress = await zoneFactoryInstance.geohashToZone(
             asciiToHex(VALID_CG_ZONE_GEOHASH)
           );
-          const zoneFactoryGeohashZoneAddress = await zoneFactoryInstance.ownerToZone(
-            user1
-          );
+          const zoneFactoryGeohashZoneAddress =
+            await zoneFactoryInstance.ownerToZone(user1);
           expect(zoneFactoryGeohashZoneAddress).to.equal(zoneAddress);
           await zoneInstance.release({ from: user1 });
-          const zoneFactoryGeohashZoneAddress2 = await zoneFactoryInstance.ownerToZone(
-            user1
-          );
+          const zoneFactoryGeohashZoneAddress2 =
+            await zoneFactoryInstance.ownerToZone(user1);
           expect(zoneFactoryGeohashZoneAddress2).to.equal(
             "0x0000000000000000000000000000000000000000"
           );
 
-          const zoneFactoryGeohashZoneAddress3 = await zoneFactoryInstance.ownerToZone(
-            user2
-          );
+          const zoneFactoryGeohashZoneAddress3 =
+            await zoneFactoryInstance.ownerToZone(user2);
           expect(zoneFactoryGeohashZoneAddress3).to.equal(
             "0x0000000000000000000000000000000000000000"
           );
           await claimFreeZone(user2, MIN_ZONE_DTH_STAKE, zoneInstance.address);
-          const zoneFactoryGeohashZoneAddress4 = await zoneFactoryInstance.ownerToZone(
-            user2
-          );
+          const zoneFactoryGeohashZoneAddress4 =
+            await zoneFactoryInstance.ownerToZone(user2);
           expect(zoneFactoryGeohashZoneAddress4).to.equal(zoneAddress);
           expect(dthInstance.balanceOf(user2)).to.eventually.be.bignumber.equal(
             "0"
@@ -1431,9 +1475,8 @@ contract("ZoneFactory + Zone", (accounts) => {
           });
           it("user dth balance should have increased by withdrawn bid amount", async () => {
             const user2dthBalanceAfter = await dthInstance.balanceOf(user2);
-            const expectedNewDthBalance = user2dthBalanceBefore.add(
-              user2bidAmount
-            );
+            const expectedNewDthBalance =
+              user2dthBalanceBefore.add(user2bidAmount);
             expect(user2dthBalanceAfter).to.be.bignumber.equal(
               expectedNewDthBalance
             );
@@ -1493,21 +1536,24 @@ contract("ZoneFactory + Zone", (accounts) => {
               await zoneInstance.getZoneOwner()
             );
             const bidMinusEntryFee = (
-              await taxFeeHelperInstance.calcEntryFee(ethToWei(MIN_ZONE_DTH_STAKE + 76), 4)
+              await taxFeeHelperInstance.calcEntryFee(
+                ethToWei(MIN_ZONE_DTH_STAKE + 76),
+                4
+              )
             ).bidAmount;
             expect(zoneOwnerAfter.staked).to.be.bignumber.equal(
               bidMinusEntryFee
             );
             const lastAuctionEndTime = zoneOwnerAfter.startTime; // we just added a zoneowner, his startTime will be that first auctions endTime
             const lastBlockTimestamp = await getLastBlockTimestamp();
-            const zoneParams = await zoneInstance.zoneParams()
+            const zoneParams = await zoneInstance.zoneParams();
             const harbTaxes = await taxFeeHelperInstance.calcHarbergerTax(
-                bidMinusEntryFee,
-                lastAuctionEndTime,
-                lastBlockTimestamp,
-                zoneParams.zoneTax
-              )
-            const bidMinusTaxesPaid = BN(bidMinusEntryFee).sub(harbTaxes)
+              bidMinusEntryFee,
+              lastAuctionEndTime,
+              lastBlockTimestamp,
+              zoneParams.zoneTax
+            );
+            const bidMinusTaxesPaid = BN(bidMinusEntryFee).sub(harbTaxes);
             // const bidMinusTaxesPaid = (
             //   await taxFeeHelperInstance.calcHarbergerTax(
             //     lastAuctionEndTime,
@@ -2221,7 +2267,7 @@ contract("ZoneFactory + Zone", (accounts) => {
             ONE_HOUR,
             "4" // zone_tax
           );
-                    expect(res).to.be.bignumber.equal("1666666666666666");
+          expect(res).to.be.bignumber.equal("1666666666666666");
         });
         it("[tax 1 day] stake 100 dth ", async () => {
           const res = await taxFeeHelperInstance.calcHarbergerTax(
@@ -2244,7 +2290,12 @@ contract("ZoneFactory + Zone", (accounts) => {
           // expect(res.keepAmount).to.be.bignumber.equal("100959600000000000000");
         });
         it("returns correct result 15 second tax time", async () => {
-          const res = await taxFeeHelperInstance.calcHarbergerTax(ethToWei(100),0, 15, 4);
+          const res = await taxFeeHelperInstance.calcHarbergerTax(
+            ethToWei(100),
+            0,
+            15,
+            4
+          );
 
           expect(res).to.be.bignumber.equal("6944444444444");
           // expect(res.keepAmount).to.be.bignumber.equal("99999993055555555556");

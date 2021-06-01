@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.3;
 
-import "../interfaces/IDetherToken.sol";
+import "../interfaces/IAnyswapV3ERC20.sol";
 import "../interfaces/IUsers.sol";
 import "../interfaces/IGeoRegistry.sol";
 import "../interfaces/IZoneFactory.sol";
@@ -50,7 +50,7 @@ contract Shops {
     uint256 public stakedDth;
 
     // links to other contracts
-    IDetherToken public dth;
+    IAnyswapV3ERC20 public dth;
     IGeoRegistry public geo;
     IUsers public users;
     IZoneFactory public zoneFactory;
@@ -165,7 +165,7 @@ contract Shops {
             "zoneFactory address cannot be 0x0"
         );
 
-        dth = IDetherToken(_dth);
+        dth = IAnyswapV3ERC20(_dth);
         geo = IGeoRegistry(_geo);
         users = IUsers(_users);
         zoneFactory = IZoneFactory(_zoneFactory);
@@ -385,11 +385,11 @@ contract Shops {
         emit TaxTotalPaidTo(taxToSendToZoneOwner, zoneOwner);
     }
 
-    function tokenFallback(
+    function onTokenTransfer(
         address _from,
         uint256 _value,
         bytes calldata _data
-    ) external onlyWhenCallerIsDTH {
+    ) external onlyWhenCallerIsDTH returns(bool) {
         require(_data.length == 95, "addShop expects 95 bytes as data");
         // // audit feedback
         // require(!isContract(_from), 'shops cannot be a contract');
@@ -417,7 +417,7 @@ contract Shops {
             //     bytes16 opening
             // ) = abi.decode(_data[1:95], (bytes2, bytes12, bytes16, bytes16, bytes32, bytes16));
 
-        bytes2 country;
+            bytes2 country;
             bytes12 position;
             bytes16 category;
             bytes16 name;
@@ -492,6 +492,7 @@ contract Shops {
             zoneToShopAddresses[bytes6(position)].push(sender);
             shop._index = zoneToShopAddresses[bytes6(position)].length - 1;
         }
+        return (true);
     }
 
     function _topUp(

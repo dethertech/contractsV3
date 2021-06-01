@@ -8,9 +8,9 @@ abstract contract ITaxCollector {
 
     function collect() external virtual;
 
-    function tokenFallback(
-        address _from,
-        uint256 _value,
-        bytes calldata _data
-    ) external virtual;
+    // function onTokenTransfer(
+    //     address _from,
+    //     uint256 _value,
+    //     bytes calldata _data
+    // ) external virtual;
 }

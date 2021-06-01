@@ -2,13 +2,16 @@
 pragma solidity 0.8.3;
 
 abstract contract IDetherToken {
-    function mintingFinished() external virtual view returns (bool);
+    function mintingFinished() external view virtual returns (bool);
 
-    function name() external virtual view returns (string memory);
+    function name() external view virtual returns (string memory);
 
-    function approve(address _spender, uint256 _value) external virtual returns (bool);
+    function approve(address _spender, uint256 _value)
+        external
+        virtual
+        returns (bool);
 
-    function totalSupply() external virtual view returns (uint256);
+    function totalSupply() external view virtual returns (uint256);
 
     function transferFrom(
         address _from,
@@ -16,7 +19,7 @@ abstract contract IDetherToken {
         uint256 _value
     ) external virtual returns (bool);
 
-    function decimals() external virtual view returns (uint8);
+    function decimals() external view virtual returns (uint8);
 
     function mint(address _to, uint256 _amount) external virtual returns (bool);
 
@@ -25,15 +28,22 @@ abstract contract IDetherToken {
         virtual
         returns (bool);
 
-    function balanceOf(address _owner) external virtual view returns (uint256 balance);
+    function balanceOf(address _owner)
+        external
+        view
+        virtual
+        returns (uint256 balance);
 
     function finishMinting() external virtual returns (bool);
 
-    function owner() external virtual view returns (address);
+    function owner() external view virtual returns (address);
 
-    function symbol() external virtual view returns (string memory);
+    function symbol() external view virtual returns (string memory);
 
-    function transfer(address _to, uint256 _value) external virtual returns (bool);
+    function transfer(address _to, uint256 _value)
+        external
+        virtual
+        returns (bool);
 
     function transfer(
         address _to,
@@ -48,8 +58,8 @@ abstract contract IDetherToken {
 
     function allowance(address _owner, address _spender)
         external
-        virtual
         view
+        virtual
         returns (uint256);
 
     function transferOwnership(address newOwner) external virtual;

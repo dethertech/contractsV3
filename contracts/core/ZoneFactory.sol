@@ -3,15 +3,18 @@ pragma solidity 0.8.3;
 
 import "../eip1167/EIP1167CloneFactory.sol";
 
-import "../interfaces/IERC223ReceivingContract.sol";
-import "../interfaces/IDetherToken.sol";
+// import "../interfaces/IERC223ReceivingContract.sol";
+import "../interfaces/IAnyswapV3ERC20.sol";
+import "../interfaces/ITransferReceiver.sol";
 import "../interfaces/IUsers.sol";
 import "../interfaces/IGeoRegistry.sol";
 import "../interfaces/IZone.sol";
 import "../interfaces/ITeller.sol";
 import "../interfaces/IProtocolController.sol";
 
-contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
+// contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
+
+contract ZoneFactory is ITransferReceiver, EIP1167CloneFactory {
     // ------------------------------------------------
     //
     // Variables Public
@@ -25,7 +28,7 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
     mapping(address => address[]) public zoneToAuctionBidders;
     mapping(address => address) public activeBidderToZone;
 
-    IDetherToken public dth;
+    IAnyswapV3ERC20 public dth;
     IGeoRegistry public geo;
     IUsers public users;
     IProtocolController public protocolController;
@@ -111,14 +114,13 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
             "tellerImplementation address cannot be 0x0"
         );
 
-        dth = IDetherToken(_dth);
+        dth = IAnyswapV3ERC20(_dth);
         geo = IGeoRegistry(_geo);
         users = IUsers(_users);
         protocolController = IProtocolController(_protocolController);
 
         zoneImplementation = _zoneImplementation;
         tellerImplementation = _tellerImplementation;
-
     }
 
     // ------------------------------------------------
@@ -315,11 +317,11 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
     /*
      * Wait for a tranfer from DTH TOKEN CONTRACT to create zone and teller contract associated with the zone.
      */
-    function tokenFallback(
+    function onTokenTransfer(
         address _from,
         uint256 _value,
         bytes memory _data // GAS COST +/- 3.763.729
-    ) public override {
+    ) public override returns (bool) {
         require(
             msg.sender == address(dth),
             "can only be called by dth contract"
@@ -365,7 +367,8 @@ contract ZoneFactory is IERC223ReceivingContract, EIP1167CloneFactory {
         ownerToZone[sender] = newZoneAddress;
 
         // send all dth through to the new Zone contract
-        require(dth.transfer(newZoneAddress, dthAmount, hex"40"));
+        require(dth.transferAndCall(newZoneAddress, dthAmount, hex"40"));
         emit NewZoneCreated(geohash, newZoneAddress);
+        return (true);
     }
 }

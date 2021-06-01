@@ -2,9 +2,10 @@
 /* global artifacts, contract */
 /* eslint-disable max-len, no-multi-spaces, no-unused-expressions */
 
-const { expectEvent } = require('@openzeppelin/test-helpers');
+const { expectEvent } = require("@openzeppelin/test-helpers");
 
 const DetherToken = artifacts.require("DetherToken");
+const AnyswapV4ERC20 = artifacts.require("AnyswapV4ERC20");
 const Users = artifacts.require("Users");
 const CertifierRegistry = artifacts.require("CertifierRegistry");
 const GeoRegistry = artifacts.require("GeoRegistry");
@@ -21,20 +22,25 @@ const Web3 = require("web3");
 const expect = require("./utils/chai");
 const TimeTravel = require("./utils/timeTravel");
 const { addCountry } = require("./utils/geo");
-const { ethToWei, asciiToHex, str, weiToEth, toVotingPerc } = require("./utils/convert");
+const {
+  ethToWei,
+  asciiToHex,
+  str,
+  weiToEth,
+  toVotingPerc,
+} = require("./utils/convert");
 const { expectRevert2 } = require("./utils/evmErrors");
 
 const web3 = new Web3("http://localhost:8545");
 const timeTravel = new TimeTravel(web3);
 
-const getBlockTimestamp = async (nr) =>
-  (await web3.eth.getBlock(nr)).timestamp;
+const getBlockTimestamp = async (nr) => (await web3.eth.getBlock(nr)).timestamp;
 
 const PROPOSAL_KIND = {
   GlobalParams: 0,
   CountryFloorPrice: 1,
-  SendDth: 2
-}
+  SendDth: 2,
+};
 
 const encodeProposalArgs = (kind, args) => {
   switch (kind) {
@@ -65,10 +71,10 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
   let user5;
   let user6; // does not have any Dth, used as SendDth recipient
 
-
   let __rootState__; // eslint-disable-line no-underscore-dangle
 
   let dthInstance;
+  let tempDthInstance;
   let usersInstance;
   let geoInstance;
   let zoneFactoryInstance;
@@ -87,8 +93,51 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
   beforeEach(async () => {
     await timeTravel.revertState(__rootState__); // to go back to real time
 
-    dthInstance = await DetherToken.new({ from: owner });
-
+    tempDthInstance = await DetherToken.new({ from: owner });
+    await tempDthInstance.mint(owner, ethToWei(150000), { from: owner });
+    await tempDthInstance.mint(user1, ethToWei(150000), { from: owner });
+    await tempDthInstance.mint(user2, ethToWei(150000), { from: owner });
+    await tempDthInstance.mint(user3, ethToWei(150000), { from: owner });
+    await tempDthInstance.mint(user4, ethToWei(150000), { from: owner });
+    await tempDthInstance.mint(user5, ethToWei(150000), { from: owner });
+    dthInstance = await AnyswapV4ERC20.new(
+      "ANYDTH",
+      "DTH",
+      18,
+      tempDthInstance.address,
+      owner,
+      { from: owner }
+    );
+    await tempDthInstance.approve(
+      dthInstance.address,
+      web3.utils.toWei("1000000", "ether"),
+      { from: owner }
+    );
+    await tempDthInstance.approve(
+      dthInstance.address,
+      web3.utils.toWei("1000000", "ether"),
+      { from: user1 }
+    );
+    await tempDthInstance.approve(
+      dthInstance.address,
+      web3.utils.toWei("1000000", "ether"),
+      { from: user2 }
+    );
+    await tempDthInstance.approve(
+      dthInstance.address,
+      web3.utils.toWei("1000000", "ether"),
+      { from: user3 }
+    );
+    await tempDthInstance.approve(
+      dthInstance.address,
+      web3.utils.toWei("1000000", "ether"),
+      { from: user4 }
+    );
+    await tempDthInstance.approve(
+      dthInstance.address,
+      web3.utils.toWei("1000000", "ether"),
+      { from: user5 }
+    );
     certifierRegistryInstance = await CertifierRegistry.new({ from: owner });
 
     geoInstance = await GeoRegistry.new({ from: owner });
@@ -111,17 +160,27 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
     //
     //
 
-    dthWrapperInstance = await DthWrapper.new(dthInstance.address, { from: owner });
+    dthWrapperInstance = await DthWrapper.new(dthInstance.address, {
+      from: owner,
+    });
     votingInstance = await Voting.new(
       dthWrapperInstance.address,
       toVotingPerc(25), // % of possible votes
       toVotingPerc(60), // % of casted votes
-      ethToWei(1),     // 1 DTH
-      7*24*60*60,       // 7 days
+      ethToWei(1), // 1 DTH
+      7 * 24 * 60 * 60, // 7 days
       { from: owner }
     );
-    protocolControllerInstance = await ProtocolController.new(dthInstance.address, votingInstance.address, geoInstance.address, { from: owner });
-    await votingInstance.setProtocolController(protocolControllerInstance.address, { from: owner });
+    protocolControllerInstance = await ProtocolController.new(
+      dthInstance.address,
+      votingInstance.address,
+      geoInstance.address,
+      { from: owner }
+    );
+    await votingInstance.setProtocolController(
+      protocolControllerInstance.address,
+      { from: owner }
+    );
 
     zoneFactoryInstance = await ZoneFactory.new(
       dthInstance.address,
@@ -133,13 +192,26 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
       { from: owner }
     );
 
-    await addCountry(owner, web3, geoInstance, 'CG', 300);
+    await addCountry(owner, web3, geoInstance, "CG", 300);
 
-    await dthInstance.mint(user1, ethToWei(100), { from: owner });
-    await dthInstance.mint(user2, ethToWei(100), { from: owner });
-    await dthInstance.mint(user3, ethToWei(100), { from: owner });
-    await dthInstance.mint(user4, ethToWei(100), { from: owner });
-    await dthInstance.mint(user5, ethToWei(100), { from: owner });
+    await dthInstance.deposit(ethToWei(100), owner, {
+      from: owner,
+    });
+    await dthInstance.deposit(ethToWei(100), user1, {
+      from: user1,
+    });
+    await dthInstance.deposit(ethToWei(100), user2, {
+      from: user2,
+    });
+    await dthInstance.deposit(ethToWei(100), user3, {
+      from: user3,
+    });
+    await dthInstance.deposit(ethToWei(100), user4, {
+      from: user4,
+    });
+    await dthInstance.deposit(ethToWei(100), user5, {
+      from: user5,
+    });
   });
 
   const wrapDth = async (from, amount) => {
@@ -148,31 +220,41 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
       to: dthInstance.address,
       data: [
         web3.eth.abi.encodeFunctionSignature(
-          "transfer(address,uint256,bytes)"
+          "transferAndCall(address,uint256,bytes)"
         ),
-        web3.eth.abi.encodeParameters(
-          ["address", "uint256", "bytes"],
-          [dthWrapperInstance.address, ethToWei(amount), `0x`]
-        ).slice(2)
+        web3.eth.abi
+          .encodeParameters(
+            ["address", "uint256", "bytes"],
+            [dthWrapperInstance.address, ethToWei(amount), `0x`]
+          )
+          .slice(2),
       ].join(""),
       value: 0,
       gas: 4700000,
-    })
-    expect((await dthWrapperInstance.balanceOf(from)).toString()).to.equal(ethToWei(amount));
-  }
+    });
+    expect((await dthWrapperInstance.balanceOf(from)).toString()).to.equal(
+      ethToWei(amount)
+    );
+  };
 
-  describe('Voting', () => {
-    describe('ProposalKind.GlobalParams', () => {
-      describe('createProposal()', () => {
+  describe("Voting", () => {
+    describe("ProposalKind.GlobalParams", () => {
+      describe("createProposal()", () => {
         it("cannot create proposal if no wrapped dth", async () => {
           await expectRevert2(
             votingInstance.createProposal(
               PROPOSAL_KIND.GlobalParams,
-              encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+              encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+                2 * 60 * 60,
+                1 * 60 * 60,
+                10,
+                100,
+                40,
+              ]),
               { from: user1 }
             ),
-            'not enough wrapped dth'
-          )
+            "not enough wrapped dth"
+          );
         });
 
         it("cannot create proposal if less than minimum wrapped dth", async () => {
@@ -181,11 +263,17 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await expectRevert2(
             votingInstance.createProposal(
               PROPOSAL_KIND.GlobalParams,
-              encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+              encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+                2 * 60 * 60,
+                1 * 60 * 60,
+                10,
+                100,
+                40,
+              ]),
               { from: user1 }
             ),
-            'not enough wrapped dth'
-          )
+            "not enough wrapped dth"
+          );
         });
 
         it("success", async () => {
@@ -193,7 +281,13 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const tx = await votingInstance.createProposal(
             PROPOSAL_KIND.GlobalParams,
-            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+              2 * 60 * 60,
+              1 * 60 * 60,
+              10,
+              100,
+              40,
+            ]),
             { from: user1 }
           );
 
@@ -203,14 +297,22 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
           expect(proposal.executed).to.equal(false);
-          expect(proposal.startDate.toString()).to.equal(blockTimestamp.toString());
-          expect(proposal.snapshotBlock.toString()).to.equal((blockNr-1).toString());
-          expect(proposal.minAcceptQuorum.toString()).to.equal(toVotingPerc(25).toString());
-          expect(proposal.supportRequired.toString()).to.equal(toVotingPerc(60).toString());
-          expect(proposal.yea.toString()).to.equal('0');
-          expect(proposal.nay.toString()).to.equal('0');
+          expect(proposal.startDate.toString()).to.equal(
+            blockTimestamp.toString()
+          );
+          expect(proposal.snapshotBlock.toString()).to.equal(
+            (blockNr - 1).toString()
+          );
+          expect(proposal.minAcceptQuorum.toString()).to.equal(
+            toVotingPerc(25).toString()
+          );
+          expect(proposal.supportRequired.toString()).to.equal(
+            toVotingPerc(60).toString()
+          );
+          expect(proposal.yea.toString()).to.equal("0");
+          expect(proposal.nay.toString()).to.equal("0");
           expect(proposal.votingPower.toString()).to.equal(ethToWei(1));
-          expect(proposal.kind.toString()).to.equal('0');
+          expect(proposal.kind.toString()).to.equal("0");
         });
 
         it("cannot create proposal with identical args as existing active proposal", async () => {
@@ -219,18 +321,30 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.GlobalParams,
-            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+              2 * 60 * 60,
+              1 * 60 * 60,
+              10,
+              100,
+              40,
+            ]),
             { from: user1 }
           );
 
           await expectRevert2(
             votingInstance.createProposal(
               PROPOSAL_KIND.GlobalParams,
-              encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+              encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+                2 * 60 * 60,
+                1 * 60 * 60,
+                10,
+                100,
+                40,
+              ]),
               { from: user2 }
             ),
-            'proposal with same args already exists'
-          )
+            "proposal with same args already exists"
+          );
         });
 
         it("cannot create proposal if user already has active proposal", async () => {
@@ -238,18 +352,30 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.GlobalParams,
-            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+              2 * 60 * 60,
+              1 * 60 * 60,
+              10,
+              100,
+              40,
+            ]),
             { from: user1 }
           );
 
           await expectRevert2(
             votingInstance.createProposal(
               PROPOSAL_KIND.GlobalParams,
-              encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+              encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+                2 * 60 * 60,
+                1 * 60 * 60,
+                10,
+                100,
+                40,
+              ]),
               { from: user1 }
             ),
-            'user already has proposal'
-          )
+            "user already has proposal"
+          );
         });
 
         it("cannot create new proposal if old proposal ended but not yet executed", async () => {
@@ -257,22 +383,34 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.GlobalParams,
-            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+              2 * 60 * 60,
+              1 * 60 * 60,
+              10,
+              100,
+              40,
+            ]),
             { from: user1 }
           );
 
           await votingInstance.placeVote(1, true, { from: user1 });
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await expectRevert2(
             votingInstance.createProposal(
               PROPOSAL_KIND.GlobalParams,
-              encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+              encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+                2 * 60 * 60,
+                1 * 60 * 60,
+                10,
+                100,
+                40,
+              ]),
               { from: user1 }
             ),
-            'user already has proposal'
-          )
+            "user already has proposal"
+          );
         });
 
         it("can create new proposal if old proposal ended and was executed", async () => {
@@ -280,32 +418,50 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.GlobalParams,
-            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+              2 * 60 * 60,
+              1 * 60 * 60,
+              10,
+              100,
+              40,
+            ]),
             { from: user1 }
           );
 
           await votingInstance.placeVote(1, true, { from: user1 });
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await votingInstance.execute(1, { from: user1 });
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.GlobalParams,
-            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+              2 * 60 * 60,
+              1 * 60 * 60,
+              10,
+              100,
+              40,
+            ]),
             { from: user1 }
           );
         });
       });
 
-      describe('placeVote()', () => {
+      describe("placeVote()", () => {
         beforeEach(async () => {
           await wrapDth(user1, 1);
           await wrapDth(user2, 1);
 
           const tx = await votingInstance.createProposal(
             PROPOSAL_KIND.GlobalParams,
-            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+              2 * 60 * 60,
+              1 * 60 * 60,
+              10,
+              100,
+              40,
+            ]),
             { from: user1 }
           );
 
@@ -315,37 +471,45 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
           expect(proposal.executed).to.equal(false);
-          expect(proposal.startDate.toString()).to.equal(blockTimestamp.toString());
-          expect(proposal.snapshotBlock.toString()).to.equal((blockNr-1).toString());
-          expect(proposal.minAcceptQuorum.toString()).to.equal(toVotingPerc(25).toString());
-          expect(proposal.supportRequired.toString()).to.equal(toVotingPerc(60).toString());
-          expect(proposal.yea.toString()).to.equal('0');
-          expect(proposal.nay.toString()).to.equal('0');
+          expect(proposal.startDate.toString()).to.equal(
+            blockTimestamp.toString()
+          );
+          expect(proposal.snapshotBlock.toString()).to.equal(
+            (blockNr - 1).toString()
+          );
+          expect(proposal.minAcceptQuorum.toString()).to.equal(
+            toVotingPerc(25).toString()
+          );
+          expect(proposal.supportRequired.toString()).to.equal(
+            toVotingPerc(60).toString()
+          );
+          expect(proposal.yea.toString()).to.equal("0");
+          expect(proposal.nay.toString()).to.equal("0");
           expect(proposal.votingPower.toString()).to.equal(ethToWei(2));
-          expect(proposal.kind.toString()).to.equal('0');
+          expect(proposal.kind.toString()).to.equal("0");
         });
 
         it("cannot vote on nonexistent proposal", async () => {
           await expectRevert2(
             votingInstance.placeVote(99, true, { from: user2 }),
-            'proposal does not exist'
-          )
+            "proposal does not exist"
+          );
         });
 
         it("cannot vote on proposal that ended", async () => {
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await expectRevert2(
             votingInstance.placeVote(1, true, { from: user2 }),
-            'proposal ended'
-          )
+            "proposal ended"
+          );
         });
 
         it("cannot vote without wrapped dth", async () => {
           await expectRevert2(
             votingInstance.placeVote(1, true, { from: user3 }),
-            'caller does not have voting tokens'
-          )
+            "caller does not have voting tokens"
+          );
         });
 
         it("success", async () => {
@@ -355,16 +519,15 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           expect(proposal.open).to.equal(true);
           expect(proposal.executed).to.equal(false);
           expect(proposal.yea.toString()).to.equal(ethToWei(1));
-          expect(proposal.nay.toString()).to.equal('0');
+          expect(proposal.nay.toString()).to.equal("0");
         });
 
         it("cannot vote the same side again", async () => {
           await votingInstance.placeVote(1, true, { from: user2 }),
-
-          await expectRevert2(
-            votingInstance.placeVote(1, true, { from: user2 }),
-            'already voted that side'
-          )
+            await expectRevert2(
+              votingInstance.placeVote(1, true, { from: user2 }),
+              "already voted that side"
+            );
         });
 
         it("can change existing vote's side", async () => {
@@ -374,12 +537,12 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
           expect(proposal.executed).to.equal(false);
-          expect(proposal.yea.toString()).to.equal('0');
+          expect(proposal.yea.toString()).to.equal("0");
           expect(proposal.nay.toString()).to.equal(ethToWei(1));
         });
       });
 
-      describe('execute()', () => {
+      describe("execute()", () => {
         beforeEach(async () => {
           await wrapDth(user1, 1);
           await wrapDth(user2, 1);
@@ -389,7 +552,13 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.GlobalParams,
-            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+              2 * 60 * 60,
+              1 * 60 * 60,
+              10,
+              100,
+              40,
+            ]),
             { from: user1 }
           );
         });
@@ -397,15 +566,15 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
         it("cannot execute nonexistent proposal", async () => {
           await expectRevert2(
             votingInstance.execute(99, { from: user2 }),
-            'proposal does not exist'
-          )
+            "proposal does not exist"
+          );
         });
 
         it("cannot execute proposal that did not yet end", async () => {
           await expectRevert2(
             votingInstance.execute(1, { from: user2 }),
-            'proposal did not yet end'
-          )
+            "proposal did not yet end"
+          );
         });
 
         it("cannot execute proposal with not enough % of casted votes", async () => {
@@ -416,12 +585,12 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await votingInstance.placeVote(1, true, { from: user5 });
           // casted votes = 50% yea, 50% nay
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await expectRevert2(
             votingInstance.execute(1, { from: user3 }),
-            'not enough support in casted votes'
-          )
+            "not enough support in casted votes"
+          );
         });
 
         it("cannot execute proposal with that did not enough % of possible votes", async () => {
@@ -430,12 +599,12 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           // casted votes = 66% yea, 33% nay
           // possible votes = 20% yea
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await expectRevert2(
             votingInstance.execute(1, { from: user3 }),
-            'not enough support in possible votes'
-          )
+            "not enough support in possible votes"
+          );
         });
 
         it("success", async () => {
@@ -447,15 +616,20 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           // casted votes = 70% yea, 30% nay
           // possible votes = 70% yea
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           let proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
           expect(proposal.executed).to.equal(false);
 
-          const oldGlobalParams = await protocolControllerInstance.globalParams();
-          expect(oldGlobalParams.bidPeriod.toString()).to.equal((48*60*60).toString());
-          expect(oldGlobalParams.cooldownPeriod.toString()).to.equal((24*60*60).toString());
+          const oldGlobalParams =
+            await protocolControllerInstance.globalParams();
+          expect(oldGlobalParams.bidPeriod.toString()).to.equal(
+            (48 * 60 * 60).toString()
+          );
+          expect(oldGlobalParams.cooldownPeriod.toString()).to.equal(
+            (24 * 60 * 60).toString()
+          );
           expect(oldGlobalParams.entryFee.toString()).to.equal((4).toString());
           expect(oldGlobalParams.zoneTax.toString()).to.equal((4).toString());
           expect(oldGlobalParams.minRaise.toString()).to.equal((6).toString());
@@ -469,9 +643,14 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           expect(proposal.nay.toString()).to.equal(ethToWei(3));
           expect(proposal.votingPower.toString()).to.equal(ethToWei(10));
 
-          const newGlobalParams = await protocolControllerInstance.globalParams();
-          expect(newGlobalParams.bidPeriod.toString()).to.equal((2*60*60).toString());
-          expect(newGlobalParams.cooldownPeriod.toString()).to.equal((1*60*60).toString());
+          const newGlobalParams =
+            await protocolControllerInstance.globalParams();
+          expect(newGlobalParams.bidPeriod.toString()).to.equal(
+            (2 * 60 * 60).toString()
+          );
+          expect(newGlobalParams.cooldownPeriod.toString()).to.equal(
+            (1 * 60 * 60).toString()
+          );
           expect(newGlobalParams.entryFee.toString()).to.equal((10).toString());
           expect(newGlobalParams.zoneTax.toString()).to.equal((100).toString());
           expect(newGlobalParams.minRaise.toString()).to.equal((40).toString());
@@ -486,7 +665,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           // casted votes = 70% yea, 30% nay
           // possible votes = 70% yea
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await votingInstance.execute(1, { from: user3 });
 
@@ -494,22 +673,25 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await expectRevert2(
             votingInstance.execute(1, { from: user3 }),
-            'proposal already executed'
-          )
+            "proposal already executed"
+          );
         });
       });
     });
-    describe('ProposalKind.CountryFloorPrice', () => {
-      describe('createProposal()', () => {
+    describe("ProposalKind.CountryFloorPrice", () => {
+      describe("createProposal()", () => {
         it("cannot create proposal if no wrapped dth", async () => {
           await expectRevert2(
             votingInstance.createProposal(
               PROPOSAL_KIND.CountryFloorPrice,
-              encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+              encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+                asciiToHex("CG"),
+                ethToWei(7),
+              ]),
               { from: user1 }
             ),
-            'not enough wrapped dth'
-          )
+            "not enough wrapped dth"
+          );
         });
 
         it("cannot create proposal if less than minimum wrapped dth", async () => {
@@ -518,11 +700,14 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await expectRevert2(
             votingInstance.createProposal(
               PROPOSAL_KIND.CountryFloorPrice,
-              encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+              encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+                asciiToHex("CG"),
+                ethToWei(7),
+              ]),
               { from: user1 }
             ),
-            'not enough wrapped dth'
-          )
+            "not enough wrapped dth"
+          );
         });
 
         it("success", async () => {
@@ -530,7 +715,10 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const tx = await votingInstance.createProposal(
             PROPOSAL_KIND.CountryFloorPrice,
-            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+              asciiToHex("CG"),
+              ethToWei(7),
+            ]),
             { from: user1 }
           );
 
@@ -540,14 +728,22 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
           expect(proposal.executed).to.equal(false);
-          expect(proposal.startDate.toString()).to.equal(blockTimestamp.toString());
-          expect(proposal.snapshotBlock.toString()).to.equal((blockNr-1).toString());
-          expect(proposal.minAcceptQuorum.toString()).to.equal(toVotingPerc(25).toString());
-          expect(proposal.supportRequired.toString()).to.equal(toVotingPerc(60).toString());
-          expect(proposal.yea.toString()).to.equal('0');
-          expect(proposal.nay.toString()).to.equal('0');
+          expect(proposal.startDate.toString()).to.equal(
+            blockTimestamp.toString()
+          );
+          expect(proposal.snapshotBlock.toString()).to.equal(
+            (blockNr - 1).toString()
+          );
+          expect(proposal.minAcceptQuorum.toString()).to.equal(
+            toVotingPerc(25).toString()
+          );
+          expect(proposal.supportRequired.toString()).to.equal(
+            toVotingPerc(60).toString()
+          );
+          expect(proposal.yea.toString()).to.equal("0");
+          expect(proposal.nay.toString()).to.equal("0");
           expect(proposal.votingPower.toString()).to.equal(ethToWei(1));
-          expect(proposal.kind.toString()).to.equal('1');
+          expect(proposal.kind.toString()).to.equal("1");
         });
 
         it("cannot create proposal with identical args as existing active proposal", async () => {
@@ -556,18 +752,24 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.CountryFloorPrice,
-            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+              asciiToHex("CG"),
+              ethToWei(7),
+            ]),
             { from: user1 }
           );
 
           await expectRevert2(
             votingInstance.createProposal(
               PROPOSAL_KIND.CountryFloorPrice,
-              encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+              encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+                asciiToHex("CG"),
+                ethToWei(7),
+              ]),
               { from: user2 }
             ),
-            'proposal with same args already exists'
-          )
+            "proposal with same args already exists"
+          );
         });
 
         it("cannot create proposal if user already has active proposal", async () => {
@@ -575,18 +777,24 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.CountryFloorPrice,
-            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+              asciiToHex("CG"),
+              ethToWei(7),
+            ]),
             { from: user1 }
           );
 
           await expectRevert2(
             votingInstance.createProposal(
               PROPOSAL_KIND.CountryFloorPrice,
-              encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+              encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+                asciiToHex("CG"),
+                ethToWei(7),
+              ]),
               { from: user1 }
             ),
-            'user already has proposal'
-          )
+            "user already has proposal"
+          );
         });
 
         it("cannot create new proposal if old proposal ended but not yet executed", async () => {
@@ -594,22 +802,28 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.CountryFloorPrice,
-            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+              asciiToHex("CG"),
+              ethToWei(7),
+            ]),
             { from: user1 }
           );
 
           await votingInstance.placeVote(1, true, { from: user1 });
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await expectRevert2(
             votingInstance.createProposal(
               PROPOSAL_KIND.CountryFloorPrice,
-              encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+              encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+                asciiToHex("CG"),
+                ethToWei(7),
+              ]),
               { from: user1 }
             ),
-            'user already has proposal'
-          )
+            "user already has proposal"
+          );
         });
 
         it("can create new proposal if old proposal ended and was executed", async () => {
@@ -617,32 +831,41 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.CountryFloorPrice,
-            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+              asciiToHex("CG"),
+              ethToWei(7),
+            ]),
             { from: user1 }
           );
 
           await votingInstance.placeVote(1, true, { from: user1 });
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await votingInstance.execute(1, { from: user1 });
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.CountryFloorPrice,
-            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+              asciiToHex("CG"),
+              ethToWei(7),
+            ]),
             { from: user1 }
           );
         });
       });
 
-      describe('placeVote()', () => {
+      describe("placeVote()", () => {
         beforeEach(async () => {
           await wrapDth(user1, 1);
           await wrapDth(user2, 1);
 
           const tx = await votingInstance.createProposal(
             PROPOSAL_KIND.CountryFloorPrice,
-            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+              asciiToHex("CG"),
+              ethToWei(7),
+            ]),
             { from: user1 }
           );
 
@@ -652,37 +875,45 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
           expect(proposal.executed).to.equal(false);
-          expect(proposal.startDate.toString()).to.equal(blockTimestamp.toString());
-          expect(proposal.snapshotBlock.toString()).to.equal((blockNr-1).toString());
-          expect(proposal.minAcceptQuorum.toString()).to.equal(toVotingPerc(25).toString());
-          expect(proposal.supportRequired.toString()).to.equal(toVotingPerc(60).toString());
-          expect(proposal.yea.toString()).to.equal('0');
-          expect(proposal.nay.toString()).to.equal('0');
+          expect(proposal.startDate.toString()).to.equal(
+            blockTimestamp.toString()
+          );
+          expect(proposal.snapshotBlock.toString()).to.equal(
+            (blockNr - 1).toString()
+          );
+          expect(proposal.minAcceptQuorum.toString()).to.equal(
+            toVotingPerc(25).toString()
+          );
+          expect(proposal.supportRequired.toString()).to.equal(
+            toVotingPerc(60).toString()
+          );
+          expect(proposal.yea.toString()).to.equal("0");
+          expect(proposal.nay.toString()).to.equal("0");
           expect(proposal.votingPower.toString()).to.equal(ethToWei(2));
-          expect(proposal.kind.toString()).to.equal('1');
+          expect(proposal.kind.toString()).to.equal("1");
         });
 
         it("cannot vote on nonexistent proposal", async () => {
           await expectRevert2(
             votingInstance.placeVote(99, true, { from: user2 }),
-            'proposal does not exist'
-          )
+            "proposal does not exist"
+          );
         });
 
         it("cannot vote on proposal that ended", async () => {
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await expectRevert2(
             votingInstance.placeVote(1, true, { from: user2 }),
-            'proposal ended'
-          )
+            "proposal ended"
+          );
         });
 
         it("cannot vote without wrapped dth", async () => {
           await expectRevert2(
             votingInstance.placeVote(1, true, { from: user3 }),
-            'caller does not have voting tokens'
-          )
+            "caller does not have voting tokens"
+          );
         });
 
         it("success", async () => {
@@ -692,16 +923,15 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           expect(proposal.open).to.equal(true);
           expect(proposal.executed).to.equal(false);
           expect(proposal.yea.toString()).to.equal(ethToWei(1));
-          expect(proposal.nay.toString()).to.equal('0');
+          expect(proposal.nay.toString()).to.equal("0");
         });
 
         it("cannot vote the same side again", async () => {
           await votingInstance.placeVote(1, true, { from: user2 }),
-
-          await expectRevert2(
-            votingInstance.placeVote(1, true, { from: user2 }),
-            'already voted that side'
-          )
+            await expectRevert2(
+              votingInstance.placeVote(1, true, { from: user2 }),
+              "already voted that side"
+            );
         });
 
         it("can change existing vote's side", async () => {
@@ -711,12 +941,12 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
           expect(proposal.executed).to.equal(false);
-          expect(proposal.yea.toString()).to.equal('0');
+          expect(proposal.yea.toString()).to.equal("0");
           expect(proposal.nay.toString()).to.equal(ethToWei(1));
         });
       });
 
-      describe('execute()', () => {
+      describe("execute()", () => {
         beforeEach(async () => {
           await wrapDth(user1, 1);
           await wrapDth(user2, 1);
@@ -726,7 +956,10 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await votingInstance.createProposal(
             PROPOSAL_KIND.CountryFloorPrice,
-            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+              asciiToHex("CG"),
+              ethToWei(7),
+            ]),
             { from: user1 }
           );
         });
@@ -734,15 +967,15 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
         it("cannot execute nonexistent proposal", async () => {
           await expectRevert2(
             votingInstance.execute(99, { from: user2 }),
-            'proposal does not exist'
-          )
+            "proposal does not exist"
+          );
         });
 
         it("cannot execute proposal that did not yet end", async () => {
           await expectRevert2(
             votingInstance.execute(1, { from: user2 }),
-            'proposal did not yet end'
-          )
+            "proposal did not yet end"
+          );
         });
 
         it("cannot execute proposal with not enough % of casted votes", async () => {
@@ -753,12 +986,12 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await votingInstance.placeVote(1, true, { from: user5 });
           // casted votes = 50% yea, 50% nay
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await expectRevert2(
             votingInstance.execute(1, { from: user3 }),
-            'not enough support'
-          )
+            "not enough support"
+          );
         });
 
         it("cannot execute proposal with that did not enough % of possible votes", async () => {
@@ -767,12 +1000,12 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           // casted votes = 66% yea, 33% nay
           // possible votes = 20% yea
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await expectRevert2(
             votingInstance.execute(1, { from: user3 }),
-            'not enough support in possible votes'
-          )
+            "not enough support in possible votes"
+          );
         });
 
         it("success", async () => {
@@ -784,13 +1017,16 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           // casted votes = 70% yea, 30% nay
           // possible votes = 70% yea
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           let proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
           expect(proposal.executed).to.equal(false);
 
-          const oldCountryFloorPrice = await protocolControllerInstance.floorStakesPrices(asciiToHex('CG'));
+          const oldCountryFloorPrice =
+            await protocolControllerInstance.floorStakesPrices(
+              asciiToHex("CG")
+            );
           expect(oldCountryFloorPrice.toString()).to.equal(ethToWei(0));
 
           await votingInstance.execute(1, { from: user3 });
@@ -802,7 +1038,10 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           expect(proposal.nay.toString()).to.equal(ethToWei(3));
           expect(proposal.votingPower.toString()).to.equal(ethToWei(10));
 
-          const newCountryFloorPrice = await protocolControllerInstance.floorStakesPrices(asciiToHex('CG'));
+          const newCountryFloorPrice =
+            await protocolControllerInstance.floorStakesPrices(
+              asciiToHex("CG")
+            );
           expect(newCountryFloorPrice.toString()).to.equal(ethToWei(7));
         });
 
@@ -815,7 +1054,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           // casted votes = 70% yea, 30% nay
           // possible votes = 70% yea
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await votingInstance.execute(1, { from: user3 });
 
@@ -823,31 +1062,37 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await expectRevert2(
             votingInstance.execute(1, { from: user3 }),
-            'proposal already executed'
-          )
+            "proposal already executed"
+          );
         });
       });
     });
-    describe('ProposalKind.SendDth', () => {
+    describe.only("ProposalKind.SendDth", () => {
       const payTaxesToProtocolController = async (from, amount) => {
         await web3.eth.sendTransaction({
           from,
           to: dthInstance.address,
           data: [
             web3.eth.abi.encodeFunctionSignature(
-              "transfer(address,uint256,bytes)"
+              "transferAndCall(address,uint256,bytes)"
             ),
-            web3.eth.abi.encodeParameters(
-              ["address", "uint256", "bytes"],
-              [protocolControllerInstance.address, ethToWei(amount), `0x`]
-            ).slice(2)
+            web3.eth.abi
+              .encodeParameters(
+                ["address", "uint256", "bytes"],
+                [protocolControllerInstance.address, ethToWei(amount), `0x`]
+              )
+              .slice(2),
           ].join(""),
           value: 0,
           gas: 4700000,
-        })
-        expect((await dthInstance.balanceOf(protocolControllerInstance.address)).toString()).to.equal(ethToWei(amount));
-      }
-      describe('createProposal()', () => {
+        });
+        expect(
+          (
+            await dthInstance.balanceOf(protocolControllerInstance.address)
+          ).toString()
+        ).to.equal(ethToWei(amount));
+      };
+      describe("createProposal()", () => {
         it("cannot create proposal if no wrapped dth", async () => {
           await expectRevert2(
             votingInstance.createProposal(
@@ -855,8 +1100,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
               encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(6)]),
               { from: user1 }
             ),
-            'not enough wrapped dth'
-          )
+            "not enough wrapped dth"
+          );
         });
 
         it("cannot create proposal if less than minimum wrapped dth", async () => {
@@ -868,8 +1113,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
               encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(6)]),
               { from: user1 }
             ),
-            'not enough wrapped dth'
-          )
+            "not enough wrapped dth"
+          );
         });
 
         it("success", async () => {
@@ -889,14 +1134,22 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
           expect(proposal.executed).to.equal(false);
-          expect(proposal.startDate.toString()).to.equal(blockTimestamp.toString());
-          expect(proposal.snapshotBlock.toString()).to.equal((blockNr-1).toString());
-          expect(proposal.minAcceptQuorum.toString()).to.equal(toVotingPerc(25).toString());
-          expect(proposal.supportRequired.toString()).to.equal(toVotingPerc(60).toString());
-          expect(proposal.yea.toString()).to.equal('0');
-          expect(proposal.nay.toString()).to.equal('0');
+          expect(proposal.startDate.toString()).to.equal(
+            blockTimestamp.toString()
+          );
+          expect(proposal.snapshotBlock.toString()).to.equal(
+            (blockNr - 1).toString()
+          );
+          expect(proposal.minAcceptQuorum.toString()).to.equal(
+            toVotingPerc(25).toString()
+          );
+          expect(proposal.supportRequired.toString()).to.equal(
+            toVotingPerc(60).toString()
+          );
+          expect(proposal.yea.toString()).to.equal("0");
+          expect(proposal.nay.toString()).to.equal("0");
           expect(proposal.votingPower.toString()).to.equal(ethToWei(1));
-          expect(proposal.kind.toString()).to.equal('2');
+          expect(proposal.kind.toString()).to.equal("2");
         });
 
         it("cannot create proposal with identical args as existing active proposal", async () => {
@@ -917,8 +1170,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
               encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(6)]),
               { from: user2 }
             ),
-            'proposal with same args already exists'
-          )
+            "proposal with same args already exists"
+          );
         });
 
         it("cannot create proposal if user already has active proposal", async () => {
@@ -938,8 +1191,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
               encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(6)]),
               { from: user1 }
             ),
-            'user already has proposal'
-          )
+            "user already has proposal"
+          );
         });
 
         it("cannot create new proposal if old proposal ended but not yet executed", async () => {
@@ -955,7 +1208,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await votingInstance.placeVote(1, true, { from: user1 });
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await expectRevert2(
             votingInstance.createProposal(
@@ -963,8 +1216,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
               encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(6)]),
               { from: user1 }
             ),
-            'user already has proposal'
-          )
+            "user already has proposal"
+          );
         });
 
         it("can create new proposal if old proposal ended and was executed", async () => {
@@ -980,7 +1233,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await votingInstance.placeVote(1, true, { from: user1 });
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await votingInstance.execute(1, { from: user1 });
 
@@ -992,7 +1245,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
         });
       });
 
-      describe('placeVote()', () => {
+      describe("placeVote()", () => {
         beforeEach(async () => {
           await wrapDth(user1, 1);
           await wrapDth(user2, 1);
@@ -1011,37 +1264,45 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
           expect(proposal.executed).to.equal(false);
-          expect(proposal.startDate.toString()).to.equal(blockTimestamp.toString());
-          expect(proposal.snapshotBlock.toString()).to.equal((blockNr-1).toString());
-          expect(proposal.minAcceptQuorum.toString()).to.equal(toVotingPerc(25).toString());
-          expect(proposal.supportRequired.toString()).to.equal(toVotingPerc(60).toString());
-          expect(proposal.yea.toString()).to.equal('0');
-          expect(proposal.nay.toString()).to.equal('0');
+          expect(proposal.startDate.toString()).to.equal(
+            blockTimestamp.toString()
+          );
+          expect(proposal.snapshotBlock.toString()).to.equal(
+            (blockNr - 1).toString()
+          );
+          expect(proposal.minAcceptQuorum.toString()).to.equal(
+            toVotingPerc(25).toString()
+          );
+          expect(proposal.supportRequired.toString()).to.equal(
+            toVotingPerc(60).toString()
+          );
+          expect(proposal.yea.toString()).to.equal("0");
+          expect(proposal.nay.toString()).to.equal("0");
           expect(proposal.votingPower.toString()).to.equal(ethToWei(2));
-          expect(proposal.kind.toString()).to.equal('2');
+          expect(proposal.kind.toString()).to.equal("2");
         });
 
         it("cannot vote on nonexistent proposal", async () => {
           await expectRevert2(
             votingInstance.placeVote(99, true, { from: user2 }),
-            'proposal does not exist'
-          )
+            "proposal does not exist"
+          );
         });
 
         it("cannot vote on proposal that ended", async () => {
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await expectRevert2(
             votingInstance.placeVote(1, true, { from: user2 }),
-            'proposal ended'
-          )
+            "proposal ended"
+          );
         });
 
         it("cannot vote without wrapped dth", async () => {
           await expectRevert2(
             votingInstance.placeVote(1, true, { from: user3 }),
-            'caller does not have voting tokens'
-          )
+            "caller does not have voting tokens"
+          );
         });
 
         it("success", async () => {
@@ -1051,16 +1312,15 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           expect(proposal.open).to.equal(true);
           expect(proposal.executed).to.equal(false);
           expect(proposal.yea.toString()).to.equal(ethToWei(1));
-          expect(proposal.nay.toString()).to.equal('0');
+          expect(proposal.nay.toString()).to.equal("0");
         });
 
         it("cannot vote the same side again", async () => {
           await votingInstance.placeVote(1, true, { from: user2 }),
-
-          await expectRevert2(
-            votingInstance.placeVote(1, true, { from: user2 }),
-            'already voted that side'
-          )
+            await expectRevert2(
+              votingInstance.placeVote(1, true, { from: user2 }),
+              "already voted that side"
+            );
         });
 
         it("can change existing vote's side", async () => {
@@ -1070,12 +1330,12 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
           expect(proposal.executed).to.equal(false);
-          expect(proposal.yea.toString()).to.equal('0');
+          expect(proposal.yea.toString()).to.equal("0");
           expect(proposal.nay.toString()).to.equal(ethToWei(1));
         });
       });
 
-      describe('execute()', () => {
+      describe("execute()", () => {
         beforeEach(async () => {
           await wrapDth(user1, 1);
           await wrapDth(user2, 1);
@@ -1095,15 +1355,15 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
         it("cannot execute nonexistent proposal", async () => {
           await expectRevert2(
             votingInstance.execute(99, { from: user2 }),
-            'proposal does not exist'
-          )
+            "proposal does not exist"
+          );
         });
 
         it("cannot execute proposal that did not yet end", async () => {
           await expectRevert2(
             votingInstance.execute(1, { from: user2 }),
-            'proposal did not yet end'
-          )
+            "proposal did not yet end"
+          );
         });
 
         it("cannot execute proposal with not enough % of casted votes", async () => {
@@ -1114,12 +1374,12 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await votingInstance.placeVote(1, true, { from: user5 });
           // casted votes = 50% yea, 50% nay
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await expectRevert2(
             votingInstance.execute(1, { from: user3 }),
-            'not enough support in casted votes'
-          )
+            "not enough support in casted votes"
+          );
         });
 
         it("cannot execute proposal with that did not enough % of possible votes", async () => {
@@ -1128,12 +1388,12 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           // casted votes = 66% yea, 33% nay
           // possible votes = 20% yea
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await expectRevert2(
             votingInstance.execute(1, { from: user3 }),
-            'not enough support in possible votes'
-          )
+            "not enough support in possible votes"
+          );
         });
 
         it("success", async () => {
@@ -1145,15 +1405,21 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           // casted votes = 70% yea, 30% nay
           // possible votes = 70% yea
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           let proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
           expect(proposal.executed).to.equal(false);
 
-          const oldProtocolControllerBalanceDth = (await dthInstance.balanceOf(protocolControllerInstance.address)).toString();
-          const oldUser6BalanceDth = (await dthInstance.balanceOf(user6)).toString();
-          expect(oldProtocolControllerBalanceDth.toString()).to.equal(ethToWei(7));
+          const oldProtocolControllerBalanceDth = (
+            await dthInstance.balanceOf(protocolControllerInstance.address)
+          ).toString();
+          const oldUser6BalanceDth = (
+            await dthInstance.balanceOf(user6)
+          ).toString();
+          expect(oldProtocolControllerBalanceDth.toString()).to.equal(
+            ethToWei(7)
+          );
           expect(oldUser6BalanceDth.toString()).to.equal(ethToWei(0));
 
           await votingInstance.execute(1, { from: user3 });
@@ -1165,9 +1431,15 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           expect(proposal.nay.toString()).to.equal(ethToWei(3));
           expect(proposal.votingPower.toString()).to.equal(ethToWei(10));
 
-          const newProtocolControllerBalanceDth = (await dthInstance.balanceOf(protocolControllerInstance.address)).toString();
-          const newUser6BalanceDth = (await dthInstance.balanceOf(user6)).toString();
-          expect(newProtocolControllerBalanceDth.toString()).to.equal(ethToWei(1));
+          const newProtocolControllerBalanceDth = (
+            await dthInstance.balanceOf(protocolControllerInstance.address)
+          ).toString();
+          const newUser6BalanceDth = (
+            await dthInstance.balanceOf(user6)
+          ).toString();
+          expect(newProtocolControllerBalanceDth.toString()).to.equal(
+            ethToWei(1)
+          );
           expect(newUser6BalanceDth.toString()).to.equal(ethToWei(6));
         });
 
@@ -1180,7 +1452,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           // casted votes = 70% yea, 30% nay
           // possible votes = 70% yea
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
           await votingInstance.execute(1, { from: user3 });
 
@@ -1188,8 +1460,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await expectRevert2(
             votingInstance.execute(1, { from: user3 }),
-            'proposal already executed'
-          )
+            "proposal already executed"
+          );
         });
 
         it("can execute even if there is not enough dth in ProtocolController", async () => {
@@ -1220,11 +1492,17 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           expect(proposal.open).to.equal(true);
           expect(proposal.executed).to.equal(false);
 
-          await timeTravel.inSecs(7*24*60*60);
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
 
-          const oldProtocolControllerBalanceDth = (await dthInstance.balanceOf(protocolControllerInstance.address)).toString();
-          const oldUser6BalanceDth = (await dthInstance.balanceOf(user6)).toString();
-          expect(oldProtocolControllerBalanceDth.toString()).to.equal(ethToWei(7));
+          const oldProtocolControllerBalanceDth = (
+            await dthInstance.balanceOf(protocolControllerInstance.address)
+          ).toString();
+          const oldUser6BalanceDth = (
+            await dthInstance.balanceOf(user6)
+          ).toString();
+          expect(oldProtocolControllerBalanceDth.toString()).to.equal(
+            ethToWei(7)
+          );
           expect(oldUser6BalanceDth.toString()).to.equal(ethToWei(0));
 
           proposal = await votingInstance.getProposal(1);
@@ -1237,23 +1515,40 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           expect(proposal.open).to.equal(false);
           expect(proposal.executed).to.equal(true);
 
-          const newProtocolControllerBalanceDth_1 = (await dthInstance.balanceOf(protocolControllerInstance.address)).toString();
-          const newUser6BalanceDth_1 = (await dthInstance.balanceOf(user6)).toString();
-          expect(newProtocolControllerBalanceDth_1.toString()).to.equal(ethToWei(1));
+          const newProtocolControllerBalanceDth_1 = (
+            await dthInstance.balanceOf(protocolControllerInstance.address)
+          ).toString();
+          const newUser6BalanceDth_1 = (
+            await dthInstance.balanceOf(user6)
+          ).toString();
+          expect(newProtocolControllerBalanceDth_1.toString()).to.equal(
+            ethToWei(1)
+          );
           expect(newUser6BalanceDth_1.toString()).to.equal(ethToWei(6));
 
           // there is not enough Dth left in ProtocolController, however the execute call will still succeed
           const tx = await votingInstance.execute(2, { from: user3 });
           // a special evne twill be emitted to indicate the dth transfer failed
-          await expectEvent.inTransaction(tx.receipt.transactionHash, protocolControllerInstance, 'WithdrawDthTransferFailed', { recipient: user6, amount: ethToWei(5) });
+          await expectEvent.inTransaction(
+            tx.receipt.transactionHash,
+            protocolControllerInstance,
+            "WithdrawDthTransferFailed",
+            { recipient: user6, amount: ethToWei(5) }
+          );
 
           proposal = await votingInstance.getProposal(2);
           expect(proposal.open).to.equal(false);
           expect(proposal.executed).to.equal(true);
 
-          const newProtocolControllerBalanceDth_2 = (await dthInstance.balanceOf(protocolControllerInstance.address)).toString();
-          const newUser6BalanceDth_2 = (await dthInstance.balanceOf(user6)).toString();
-          expect(newProtocolControllerBalanceDth_2.toString()).to.equal(ethToWei(1));
+          const newProtocolControllerBalanceDth_2 = (
+            await dthInstance.balanceOf(protocolControllerInstance.address)
+          ).toString();
+          const newUser6BalanceDth_2 = (
+            await dthInstance.balanceOf(user6)
+          ).toString();
+          expect(newProtocolControllerBalanceDth_2.toString()).to.equal(
+            ethToWei(1)
+          );
           expect(newUser6BalanceDth_2.toString()).to.equal(ethToWei(6));
         });
       });

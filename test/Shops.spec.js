@@ -3,6 +3,7 @@
 /* eslint-disable max-len, no-multi-spaces, object-curly-newline */
 
 const DetherToken = artifacts.require("DetherToken");
+const AnyswapV4ERC20 = artifacts.require("AnyswapV4ERC20");
 const CertifierRegistry = artifacts.require("CertifierRegistry");
 const Users = artifacts.require("Users");
 const GeoRegistry = artifacts.require("GeoRegistry");
@@ -26,7 +27,12 @@ const expect = require("./utils/chai");
 const TimeTravel = require("./utils/timeTravel");
 const { addCountry } = require("./utils/geo");
 const { expectRevert, expectRevert2 } = require("./utils/evmErrors");
-const { ethToWei, asciiToHex, remove0x, toVotingPerc } = require("./utils/convert");
+const {
+  ethToWei,
+  asciiToHex,
+  remove0x,
+  toVotingPerc,
+} = require("./utils/convert");
 const {
   BYTES16_ZERO,
   BYTES32_ZERO,
@@ -66,7 +72,7 @@ const createDthZoneCreateDataWithTier = (
   geohash
 ) => {
   const fnSig = web3.eth.abi.encodeFunctionSignature(
-    "transfer(address,uint256,bytes)"
+    "transferAndCall(address,uint256,bytes)"
   );
   const params = web3.eth.abi.encodeParameters(
     ["address", "uint256", "bytes"],
@@ -81,7 +87,7 @@ const createDthZoneCreateDataWithTier = (
 //
 const createDthShopCreateData = (shopsAddr, dthAmount, shopData, fnByte) => {
   const fnSig = web3.eth.abi.encodeFunctionSignature(
-    "transfer(address,uint256,bytes)"
+    "transferAndCall(address,uint256,bytes)"
   );
   const data = createDthShopCreateDataBytes(fnByte, shopData);
   const params = web3.eth.abi.encodeParameters(
@@ -129,6 +135,7 @@ contract("Shops", (accounts) => {
   let __rootState__; // eslint-disable-line no-underscore-dangle
 
   let dthInstance;
+  let tempDthInstance;
   let usersInstance;
   let geoInstance;
   let shopsInstance;
@@ -148,30 +155,91 @@ contract("Shops", (accounts) => {
 
   beforeEach(async () => {
     await timeTravel.revertState(__rootState__); // to go back to real time
-    dthInstance = await DetherToken.new({ from: owner });
-    // taxCollectorInstance = await TaxCollector.new(
-    //   dthInstance.address,
-    //   ADDRESS_ZERO,
-    //   { from: owner }
-    // );
-
+    // create temp dthTokens
+    tempDthInstance = await DetherToken.new({ from: owner });
+    await tempDthInstance.mint(owner, web3.utils.toWei("1000000", "ether"), {
+      from: owner,
+    });
+    await tempDthInstance.mint(user1, web3.utils.toWei("1000000", "ether"), {
+      from: owner,
+    });
+    await tempDthInstance.mint(user2, web3.utils.toWei("1000000", "ether"), {
+      from: owner,
+    });
+    await tempDthInstance.mint(user3, web3.utils.toWei("1000000", "ether"), {
+      from: owner,
+    });
+    await tempDthInstance.mint(user4, web3.utils.toWei("1000000", "ether"), {
+      from: owner,
+    });
+    await tempDthInstance.mint(user5, web3.utils.toWei("1000000", "ether"), {
+      from: owner,
+    });
+    // create dth from anyV4 token
+    dthInstance = await AnyswapV4ERC20.new(
+      "ANYDTH",
+      "DTH",
+      18,
+      tempDthInstance.address,
+      owner,
+      { from: owner }
+    );
+    await tempDthInstance.approve(
+      dthInstance.address,
+      web3.utils.toWei("1000000", "ether"),
+      { from: owner }
+    );
+    await tempDthInstance.approve(
+      dthInstance.address,
+      web3.utils.toWei("1000000", "ether"),
+      { from: user1 }
+    );
+    await tempDthInstance.approve(
+      dthInstance.address,
+      web3.utils.toWei("1000000", "ether"),
+      { from: user2 }
+    );
+    await tempDthInstance.approve(
+      dthInstance.address,
+      web3.utils.toWei("1000000", "ether"),
+      { from: user3 }
+    );
+    await tempDthInstance.approve(
+      dthInstance.address,
+      web3.utils.toWei("1000000", "ether"),
+      { from: user4 }
+    );
+    await tempDthInstance.approve(
+      dthInstance.address,
+      web3.utils.toWei("1000000", "ether"),
+      { from: user5 }
+    );
     certifierRegistryInstance = await CertifierRegistry.new({ from: owner });
-    dthWrapperInstance = await DthWrapper.new(dthInstance.address, { from: owner });
+    dthWrapperInstance = await DthWrapper.new(dthInstance.address, {
+      from: owner,
+    });
     geoInstance = await GeoRegistry.new({ from: owner });
 
     votingInstance = await Voting.new(
       dthWrapperInstance.address,
       toVotingPerc(25), // % of possible votes
       toVotingPerc(60), // % of casted votes
-      ethToWei(1),     // 1 DTH
-      7*24*60*60,       // 7 days
+      ethToWei(1), // 1 DTH
+      7 * 24 * 60 * 60, // 7 days
       { from: owner }
     );
-    protocolControllerInstance = await ProtocolController.new(dthInstance.address, votingInstance.address, geoInstance.address, { from: owner });
-    await votingInstance.setProtocolController(protocolControllerInstance.address, { from: owner });
+    protocolControllerInstance = await ProtocolController.new(
+      dthInstance.address,
+      votingInstance.address,
+      geoInstance.address,
+      { from: owner }
+    );
+    await votingInstance.setProtocolController(
+      protocolControllerInstance.address,
+      { from: owner }
+    );
     zoneImplementationInstance = await Zone.new({ from: owner });
     tellerImplementationInstance = await Teller.new({ from: owner });
-
 
     usersInstance = await Users.new(
       geoInstance.address,
@@ -230,7 +298,7 @@ contract("Shops", (accounts) => {
   });
 
   const createZone = async (from, dthAmount, countryCode, geohash) => {
-    await dthInstance.mint(from, ethToWei(dthAmount), { from: owner });
+    await dthInstance.deposit(ethToWei(dthAmount), from, { from: owner });
     const txCreate = await web3.eth.sendTransaction({
       from,
       to: dthInstance.address,
@@ -261,7 +329,7 @@ contract("Shops", (accounts) => {
       it("[error] -- can only be called by dth contract", async () => {
         await enableAndLoadCountry(COUNTRY_CG);
 
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE), user1, {
           from: owner,
         });
         const addShopData = createDthShopCreateDataBytes("0x30", {
@@ -273,7 +341,7 @@ contract("Shops", (accounts) => {
           opening: BYTES16_ZERO,
         });
         await expectRevert(
-          shopsInstance.tokenFallback(
+          shopsInstance.onTokenTransfer(
             user1,
             ethToWei(CG_SHOP_LICENSE_PRICE),
             addShopData,
@@ -285,7 +353,7 @@ contract("Shops", (accounts) => {
       it("[error] -- bytes arg does not have length 95", async () => {
         await enableAndLoadCountry(COUNTRY_CG);
 
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE), user1, {
           from: owner,
         });
         await expectRevert2(
@@ -307,7 +375,7 @@ contract("Shops", (accounts) => {
         );
       });
       it("[error] -- first byte is not 0x30", async () => {
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE), user1, {
           from: owner,
         });
         await expectRevert2(
@@ -330,7 +398,7 @@ contract("Shops", (accounts) => {
         );
       });
       it("[error] -- country disabled", async () => {
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE), user1, {
           from: owner,
         });
         await expectRevert2(
@@ -354,7 +422,7 @@ contract("Shops", (accounts) => {
       it("[error] -- user already has shop", async () => {
         await enableAndLoadCountry(COUNTRY_CG);
 
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE), user1, {
           from: owner,
         });
         await sendDthShopCreate(
@@ -372,7 +440,7 @@ contract("Shops", (accounts) => {
           }
         );
 
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE), user1, {
           from: owner,
         });
         await expectRevert2(
@@ -396,7 +464,7 @@ contract("Shops", (accounts) => {
       it("[error] -- there already is a shop at this geohash12", async () => {
         await enableAndLoadCountry(COUNTRY_CG);
 
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE), user1, {
           from: owner,
         });
         await sendDthShopCreate(
@@ -414,7 +482,7 @@ contract("Shops", (accounts) => {
           }
         );
 
-        await dthInstance.mint(user2, ethToWei(CG_SHOP_LICENSE_PRICE), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE), user2, {
           from: owner,
         });
         await expectRevert2(
@@ -438,7 +506,7 @@ contract("Shops", (accounts) => {
       it("[error] -- invalid geohash chars", async () => {
         await enableAndLoadCountry(COUNTRY_CG);
 
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE), user1, {
           from: owner,
         });
         await expectRevert2(
@@ -462,7 +530,7 @@ contract("Shops", (accounts) => {
       it("[error] -- zone not inside country", async () => {
         await enableAndLoadCountry(COUNTRY_CG);
 
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE), user1, {
           from: owner,
         });
         await expectRevert2(
@@ -486,7 +554,7 @@ contract("Shops", (accounts) => {
       it("[error] -- dth stake less than license price", async () => {
         await enableAndLoadCountry(COUNTRY_CG);
 
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE - 1), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE - 1), user1, {
           from: owner,
         });
         await expectRevert2(
@@ -510,7 +578,7 @@ contract("Shops", (accounts) => {
       it("[success]", async () => {
         await enableAndLoadCountry(COUNTRY_CG);
 
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE), user1, {
           from: owner,
         });
         await sendDthShopCreate(
@@ -531,7 +599,7 @@ contract("Shops", (accounts) => {
       it("[error] -- dth stake less than license price, with a zone owned and a bigger price", async () => {
         // register zone
         await enableAndLoadCountry(COUNTRY_CG);
-        await dthInstance.mint(user2, ethToWei(MIN_ZONE_DTH_STAKE), {
+        await dthInstance.deposit(ethToWei(MIN_ZONE_DTH_STAKE), user2, {
           from: owner,
         });
         let zoneInstance, tellerInstance;
@@ -549,7 +617,7 @@ contract("Shops", (accounts) => {
 
         // try the shop registration
 
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE + 1), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE + 1), user1, {
           from: owner,
         });
         await expectRevert2(
@@ -573,7 +641,7 @@ contract("Shops", (accounts) => {
       it("[succes] -- dth stake the good amount of license price, with a zone owned and a bigger price", async () => {
         // register zone
         await enableAndLoadCountry(COUNTRY_CG);
-        await dthInstance.mint(user2, ethToWei(MIN_ZONE_DTH_STAKE), {
+        await dthInstance.deposit(ethToWei(MIN_ZONE_DTH_STAKE), user2, {
           from: owner,
         });
         let zoneInstance, tellerInstance;
@@ -591,7 +659,7 @@ contract("Shops", (accounts) => {
 
         // try the shop registration
 
-        await dthInstance.mint(user1, ethToWei(111), { from: owner });
+        await dthInstance.deposit(ethToWei(111), user1, { from: owner });
         await sendDthShopCreate(
           user1,
           dthInstance.address,
@@ -610,7 +678,7 @@ contract("Shops", (accounts) => {
       it("[error] -- zone modification price - error cases", async () => {
         // register zone
         await enableAndLoadCountry(COUNTRY_CG);
-        await dthInstance.mint(user2, ethToWei(MIN_ZONE_DTH_STAKE), {
+        await dthInstance.deposit(ethToWei(MIN_ZONE_DTH_STAKE), user2, {
           from: owner,
         });
         let zoneInstance, tellerInstance;
@@ -650,7 +718,7 @@ contract("Shops", (accounts) => {
       it("[succes] -- Zone owner should succeed to collect taxes from shop", async () => {
         // register zone
         await enableAndLoadCountry(COUNTRY_CG);
-        await dthInstance.mint(user2, ethToWei(MIN_ZONE_DTH_STAKE), {
+        await dthInstance.deposit(ethToWei(MIN_ZONE_DTH_STAKE), user2, {
           from: owner,
         });
         let zoneInstance, tellerInstance;
@@ -668,7 +736,7 @@ contract("Shops", (accounts) => {
 
         // try the shop registration
         //
-        await dthInstance.mint(user1, ethToWei(111), { from: owner });
+        await dthInstance.deposit(ethToWei(111), user1, { from: owner });
         await sendDthShopCreate(
           user1,
           dthInstance.address,
@@ -687,7 +755,7 @@ contract("Shops", (accounts) => {
           asciiToHex(VALID_CG_ZONE_GEOHASH)
         );
         expect(listOfShop.length).equals(1);
-        await dthInstance.mint(user3, ethToWei(111), { from: owner });
+        await dthInstance.deposit(ethToWei(111), user3, { from: owner });
         await sendDthShopCreate(
           user3,
           dthInstance.address,
@@ -705,7 +773,7 @@ contract("Shops", (accounts) => {
         listOfShop = await shopsInstance.getShopAddressesInZone(
           asciiToHex(VALID_CG_ZONE_GEOHASH)
         );
-        await dthInstance.mint(user4, ethToWei(111), { from: owner });
+        await dthInstance.deposit(ethToWei(111), user4, { from: owner });
         await sendDthShopCreate(
           user4,
           dthInstance.address,
@@ -737,7 +805,7 @@ contract("Shops", (accounts) => {
       it("[success] -- Zone owner should succeed to collect taxes and delete shop, and tax the good amounts", async () => {
         // register zone
         await enableAndLoadCountry(COUNTRY_CG);
-        await dthInstance.mint(user2, ethToWei(MIN_ZONE_DTH_STAKE), {
+        await dthInstance.deposit(ethToWei(MIN_ZONE_DTH_STAKE), user2, {
           from: owner,
         });
         let zoneInstance, tellerInstance;
@@ -756,7 +824,7 @@ contract("Shops", (accounts) => {
         const licencePrice = ethToWei(111);
         // try the shop registration
         //
-        await dthInstance.mint(user1, ethToWei(111), { from: owner });
+        await dthInstance.deposit(ethToWei(111), user1, { from: owner });
         await sendDthShopCreate(
           user1,
           dthInstance.address,
@@ -771,7 +839,7 @@ contract("Shops", (accounts) => {
             opening: BYTES16_ZERO,
           }
         );
-        await dthInstance.mint(user3, ethToWei(111), { from: owner });
+        await dthInstance.deposit(ethToWei(111), user3, { from: owner });
         await sendDthShopCreate(
           user3,
           dthInstance.address,
@@ -794,7 +862,7 @@ contract("Shops", (accounts) => {
           ethToWei(222),
           { from: user2 }
         );
-        await dthInstance.mint(user4, ethToWei(222), { from: owner });
+        await dthInstance.deposit(ethToWei(222), user4, { from: owner });
         await sendDthShopCreate(
           user4,
           dthInstance.address,
@@ -812,7 +880,7 @@ contract("Shops", (accounts) => {
 
         await timeTravel.inSecs(ONE_WEEK_IN_SEC / 2);
         timeElapsed += ONE_WEEK_IN_SEC / 2;
-        await dthInstance.mint(user5, ethToWei(222), { from: owner });
+        await dthInstance.deposit(ethToWei(222), user5, { from: owner });
 
         await sendDthShopCreate(
           user5,
@@ -898,7 +966,7 @@ contract("Shops", (accounts) => {
       it("[success] -- Zone owner should succeed to collect taxes at different rates", async () => {
         // register zone
         await enableAndLoadCountry(COUNTRY_CG);
-        await dthInstance.mint(user2, ethToWei(MIN_ZONE_DTH_STAKE), {
+        await dthInstance.deposit(ethToWei(MIN_ZONE_DTH_STAKE), user2, {
           from: owner,
         });
         let zoneInstance, tellerInstance;
@@ -917,7 +985,7 @@ contract("Shops", (accounts) => {
         const licencePrice = ethToWei(111);
         // try the shop registration
         //
-        await dthInstance.mint(user1, ethToWei(111), { from: owner });
+        await dthInstance.deposit(ethToWei(111), user1, { from: owner });
         await sendDthShopCreate(
           user1,
           dthInstance.address,
@@ -933,7 +1001,7 @@ contract("Shops", (accounts) => {
           }
         );
 
-        await dthInstance.mint(user3, ethToWei(111), { from: owner });
+        await dthInstance.deposit(ethToWei(111), user3, { from: owner });
         await sendDthShopCreate(
           user3,
           dthInstance.address,
@@ -950,7 +1018,7 @@ contract("Shops", (accounts) => {
         );
         await timeTravel.inSecs(ONE_WEEK_IN_SEC * 4);
         timeElapsed += ONE_WEEK_IN_SEC * 4;
-        await dthInstance.mint(user4, ethToWei(111), { from: owner });
+        await dthInstance.deposit(ethToWei(111), user4, { from: owner });
         await sendDthShopCreate(
           user4,
           dthInstance.address,
@@ -968,7 +1036,7 @@ contract("Shops", (accounts) => {
         await timeTravel.inSecs(ONE_WEEK_IN_SEC / 2);
         timeElapsed += ONE_WEEK_IN_SEC / 2;
 
-        await dthInstance.mint(user5, ethToWei(111), { from: owner });
+        await dthInstance.deposit(ethToWei(111), user5, { from: owner });
         await sendDthShopCreate(
           user5,
           dthInstance.address,
@@ -1065,7 +1133,7 @@ contract("Shops", (accounts) => {
       it("[error] -- caller does not own shop", async () => {
         await enableAndLoadCountry(COUNTRY_CG);
 
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE), user1, {
           from: owner,
         });
         await sendDthShopCreate(
@@ -1091,7 +1159,7 @@ contract("Shops", (accounts) => {
       it("RemoveShop [success]", async () => {
         await enableAndLoadCountry(COUNTRY_CG);
 
-        await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), {
+        await dthInstance.deposit(ethToWei(CG_SHOP_LICENSE_PRICE), user1, {
           from: owner,
         });
         await sendDthShopCreate(
@@ -1119,7 +1187,7 @@ contract("Shops", (accounts) => {
       });
       it("Remove shop from zone owner [SUCCESS]", async () => {
         await enableAndLoadCountry(COUNTRY_CG);
-        await dthInstance.mint(user2, ethToWei(MIN_ZONE_DTH_STAKE), {
+        await dthInstance.deposit(ethToWei(MIN_ZONE_DTH_STAKE), user2, {
           from: owner,
         });
         let zoneInstance, tellerInstance;
@@ -1137,7 +1205,7 @@ contract("Shops", (accounts) => {
           { from: user2 }
         );
 
-        await dthInstance.mint(user1, ethToWei(111), { from: owner });
+        await dthInstance.deposit(ethToWei(111), user1, { from: owner });
 
         await sendDthShopCreate(
           user1,
@@ -1171,7 +1239,7 @@ contract("Shops", (accounts) => {
       });
       it("Remove shop from zone owner [ERROR]", async () => {
         await enableAndLoadCountry(COUNTRY_CG);
-        await dthInstance.mint(user2, ethToWei(MIN_ZONE_DTH_STAKE), {
+        await dthInstance.deposit(ethToWei(MIN_ZONE_DTH_STAKE), user2, {
           from: owner,
         });
         let zoneInstance, tellerInstance;
@@ -1189,7 +1257,7 @@ contract("Shops", (accounts) => {
           { from: user2 }
         );
 
-        await dthInstance.mint(user1, ethToWei(111), { from: owner });
+        await dthInstance.deposit(ethToWei(111), user1, { from: owner });
 
         await sendDthShopCreate(
           user1,
@@ -1222,7 +1290,7 @@ contract("Shops", (accounts) => {
     //     it('[error] -- dispute type does not exist', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1249,7 +1317,7 @@ contract("Shops", (accounts) => {
     //     it('[error] -- evidence link is empty', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1276,7 +1344,7 @@ contract("Shops", (accounts) => {
     //     it('[error] -- shop does not exist', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1303,7 +1371,7 @@ contract("Shops", (accounts) => {
     //     it('[error] -- shop owner cannot start dispute with his own shop', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1330,7 +1398,7 @@ contract("Shops", (accounts) => {
     //     it('[error] -- cannot start dispute if shop already has dispute', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1362,7 +1430,7 @@ contract("Shops", (accounts) => {
     //     it('[error] -- send eth is lower than arbitration cost', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1389,7 +1457,7 @@ contract("Shops", (accounts) => {
     //     it('[success]', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1434,7 +1502,7 @@ contract("Shops", (accounts) => {
     //     it('[error] -- empty evidence link', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1469,7 +1537,7 @@ contract("Shops", (accounts) => {
     //     it('[error] -- dispute is not appealable', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1507,7 +1575,7 @@ contract("Shops", (accounts) => {
     //     it('[error] -- challenger ruled to win, challenger cannot appeal', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1542,7 +1610,7 @@ contract("Shops", (accounts) => {
     //     it('[error] -- shop ruled to win, shop cannot appeal', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1577,7 +1645,7 @@ contract("Shops", (accounts) => {
     //     it('[error] -- no party ruled to win, only challenger can appeal', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1612,7 +1680,7 @@ contract("Shops", (accounts) => {
     //     it('[error] -- send eth is lower than appeal cost', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1648,7 +1716,7 @@ contract("Shops", (accounts) => {
     //     it('[success] - challenger wins', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1726,7 +1794,7 @@ contract("Shops", (accounts) => {
     //     it('[success] - shop wins', async () => {
     //         await enableAndLoadCountry(COUNTRY_CG);
 
-    //         await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+    //         await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
     //         await sendDthShopCreate(
     //             user1, dthInstance.address, shopsInstance.address,
     //             CG_SHOP_LICENSE_PRICE,
@@ -1813,7 +1881,7 @@ contract("Shops", (accounts) => {
   //             // create a shop
   //             await enableAndLoadCountry(COUNTRY_CG);
 
-  //             await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+  //             await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
   //             await sendDthShopCreate(
   //                 user1, dthInstance.address, shopsInstance.address,
   //                 CG_SHOP_LICENSE_PRICE,
@@ -1838,7 +1906,7 @@ contract("Shops", (accounts) => {
   //             // create a shop
   //             await enableAndLoadCountry(COUNTRY_CG);
 
-  //             await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+  //             await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
   //             await sendDthShopCreate(
   //                 user1, dthInstance.address, shopsInstance.address,
   //                 CG_SHOP_LICENSE_PRICE,
@@ -1881,7 +1949,7 @@ contract("Shops", (accounts) => {
   //             // create a shop
   //             await enableAndLoadCountry(COUNTRY_CG);
 
-  //             await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+  //             await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
   //             await sendDthShopCreate(
   //                 user1, dthInstance.address, shopsInstance.address,
   //                 CG_SHOP_LICENSE_PRICE,
@@ -1927,7 +1995,7 @@ contract("Shops", (accounts) => {
   //             // create a shop
   //             await enableAndLoadCountry(COUNTRY_CG);
 
-  //             await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+  //             await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
   //             await sendDthShopCreate(
   //                 user1, dthInstance.address, shopsInstance.address,
   //                 CG_SHOP_LICENSE_PRICE,
@@ -1979,7 +2047,7 @@ contract("Shops", (accounts) => {
   //             // create a shop
   //             await enableAndLoadCountry(COUNTRY_CG);
 
-  //             await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+  //             await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
   //             await sendDthShopCreate(
   //                 user1, dthInstance.address, shopsInstance.address,
   //                 CG_SHOP_LICENSE_PRICE,
@@ -2022,7 +2090,7 @@ contract("Shops", (accounts) => {
   //             // create a shop
   //             await enableAndLoadCountry(COUNTRY_CG);
 
-  //             await dthInstance.mint(user1, ethToWei(CG_SHOP_LICENSE_PRICE), { from: owner });
+  //             await dthInstancedepositt(ethToWei(CG_SHOP_LICENSE_PRICE),user1, { from: owner });
   //             await sendDthShopCreate(
   //                 user1, dthInstance.address, shopsInstance.address,
   //                 CG_SHOP_LICENSE_PRICE,

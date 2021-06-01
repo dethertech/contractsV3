@@ -156,12 +156,14 @@ const addCountry = async (
   ) {
     const keysBatch = keys.slice(batchStartIdx, batchStartIdx + batchSize);
     const valuesBatch = keysBatch.map((key) => countryMap[key]);
+
     const receipt = await geoRegistryContract.updateLevel2batch(
       web3.utils.asciiToHex(countryCode),
       keysBatch.map(web3.utils.asciiToHex),
       valuesBatch,
       { from }
     );
+
     const gasCost = receipt.receipt.gasUsed;
     if (gasCost > mostExpensiveTrxGasCost) {
       mostExpensiveTrxGasCost = gasCost;
@@ -172,6 +174,7 @@ const addCountry = async (
   await geoRegistryContract.endInit(web3.utils.asciiToHex(countryCode), {
     from,
   });
+
   return { countryGasCost, mostExpensiveTrxGasCost, txCount, countryMap };
 };
 

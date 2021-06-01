@@ -15,8 +15,16 @@ module.exports = {
       gas: 6700000,
     },
     bscTestnet: {
-      provider: () => new HDWalletProvider(MNEMONIC, BSC_RPC_URL),
+      provider: () => new HDWalletProvider(MNEMONIC, BSC_RPC_URL_TESTNET),
       network_id: 97,
+      // gas: 6700000,
+      // gasPrice: 10000000000,
+      // skipDryRun: true,
+    },
+    bsc: {
+      provider: () => new HDWalletProvider(MNEMONIC, BSC_RPC_URL),
+      network_id: 56,
+      gasPrice: 5000000000,
       // gas: 6700000,
       // gasPrice: 10000000000,
       // skipDryRun: true,

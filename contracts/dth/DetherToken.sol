@@ -56,7 +56,6 @@ contract ERC20 is Context, IERC20, Ownable {
         return _symbol;
     }
 
-
     function decimals() public view returns (uint8) {
         return _decimals;
     }
@@ -64,14 +63,14 @@ contract ERC20 is Context, IERC20, Ownable {
     /**
      * @dev See {IERC20-totalSupply}.
      */
-    function totalSupply() public override view returns (uint256) {
+    function totalSupply() public view override returns (uint256) {
         return _totalSupply;
     }
 
     /**
      * @dev See {IERC20-balanceOf}.
      */
-    function balanceOf(address account) public override view returns (uint256) {
+    function balanceOf(address account) public view override returns (uint256) {
         return _balances[account];
     }
 
@@ -97,8 +96,8 @@ contract ERC20 is Context, IERC20, Ownable {
      */
     function allowance(address owner, address spender)
         public
-        override
         view
+        override
         returns (uint256)
     {
         return _allowances[owner][spender];
@@ -137,7 +136,10 @@ contract ERC20 is Context, IERC20, Ownable {
         address recipient,
         uint256 amount
     ) public override returns (bool) {
-        require(_allowances[sender][_msgSender()] > amount, "ERC20: transfer amount exceeds allowance");
+        require(
+            _allowances[sender][_msgSender()] > amount,
+            "ERC20: transfer amount exceeds allowance"
+        );
         _transfer(sender, recipient, amount);
         _approve(
             sender,
@@ -161,7 +163,6 @@ contract ERC20 is Context, IERC20, Ownable {
      */
     function increaseAllowance(address spender, uint256 addedValue)
         public
-        
         returns (bool)
     {
         _approve(
@@ -188,10 +189,12 @@ contract ERC20 is Context, IERC20, Ownable {
      */
     function decreaseAllowance(address spender, uint256 subtractedValue)
         public
-        
         returns (bool)
     {
-        require(_allowances[_msgSender()][spender] >= subtractedValue, "ERC20: decreased allowance below zero");
+        require(
+            _allowances[_msgSender()][spender] >= subtractedValue,
+            "ERC20: decreased allowance below zero"
+        );
         _approve(
             _msgSender(),
             spender,
@@ -218,13 +221,16 @@ contract ERC20 is Context, IERC20, Ownable {
         address sender,
         address recipient,
         uint256 amount
-    ) internal  {
+    ) internal {
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0), "ERC20: transfer to the zero address");
 
         _beforeTokenTransfer(sender, recipient, amount);
 
-        require(_balances[sender] >= amount, "ERC20: transfer amount exceeds balance");
+        require(
+            _balances[sender] >= amount,
+            "ERC20: transfer amount exceeds balance"
+        );
         _balances[sender] = _balances[sender] - amount;
 
         _balances[recipient] = _balances[recipient] + amount;
@@ -239,7 +245,6 @@ contract ERC20 is Context, IERC20, Ownable {
 
     function mint(address _to, uint256 _amount)
         public
-        
         onlyOwner
         canMint
         returns (bool)
@@ -262,11 +267,14 @@ contract ERC20 is Context, IERC20, Ownable {
      * - `account` cannot be the zero address.
      * - `account` must have at least `amount` tokens.
      */
-    function _burn(address account, uint256 amount) internal  {
+    function _burn(address account, uint256 amount) internal {
         require(account != address(0), "ERC20: burn from the zero address");
 
         _beforeTokenTransfer(account, address(0), amount);
-        require(_balances[account] >= amount, "ERC20: burn amount exceeds balance");
+        require(
+            _balances[account] >= amount,
+            "ERC20: burn amount exceeds balance"
+        );
         _balances[account] = _balances[account] - amount;
 
         _totalSupply = _totalSupply - amount;
@@ -290,7 +298,7 @@ contract ERC20 is Context, IERC20, Ownable {
         address owner,
         address spender,
         uint256 amount
-    ) internal  {
+    ) internal {
         require(owner != address(0), "ERC20: approve from the zero address");
         require(spender != address(0), "ERC20: approve to the zero address");
 
@@ -327,15 +335,14 @@ contract ERC20 is Context, IERC20, Ownable {
         address from,
         address to,
         uint256 amount
-    ) internal  {}
+    ) internal {}
 }
-
 
 /**
  * @title ERC223 standard token implementation.
  */
 // contract ERC223BasicToken is ERC223Basic, BasicToken {
- abstract contract ERC223BasicToken is ERC20 {
+abstract contract ERC223BasicToken is ERC20 {
     event Transfer(
         address indexed _from,
         address indexed _to,
@@ -366,7 +373,6 @@ contract ERC20 is Context, IERC20, Ownable {
         emit Transfer(msg.sender, _to, _value, _data);
         return true;
     }
-
 }
 
 // ------- dth/DetherToken.sol
@@ -375,7 +381,6 @@ contract ERC20 is Context, IERC20, Ownable {
 contract DetherToken is ERC20, ERC223BasicToken {
     string constant NAME = "Dether";
     string constant SYMBOL = "DTH";
-
 
     /**
      *@dev Constructor that set Detailed of the ERC20 token.

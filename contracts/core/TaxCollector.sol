@@ -3,14 +3,15 @@ pragma solidity 0.8.3;
 
 import "openzeppelin-solidity/contracts/access/Ownable.sol";
 
-import "../interfaces/IERC223ReceivingContract.sol";
-import "../interfaces/IDetherToken.sol";
+// import "../interfaces/IERC223ReceivingContract.sol";
+import "../interfaces/IAnyswapV3ERC20.sol";
+import "../interfaces/ITransferReceiver.sol";
 
-contract TaxCollector is IERC223ReceivingContract, Ownable {
+contract TaxCollector is ITransferReceiver, Ownable {
     // Address where collected taxes are sent to
     address public taxRecipient;
     bool public unchangeable;
-    IDetherToken public dth;
+    IAnyswapV3ERC20 public dth;
     // Daily tax rate (there are no floats in solidity)
     event ReceivedTaxes(
         address indexed tokenFrom,
@@ -19,7 +20,7 @@ contract TaxCollector is IERC223ReceivingContract, Ownable {
     );
 
     constructor(address _dth, address _taxRecipient) {
-        dth = IDetherToken(_dth);
+        dth = IAnyswapV3ERC20(_dth);
         taxRecipient = _taxRecipient;
     }
 
@@ -37,11 +38,16 @@ contract TaxCollector is IERC223ReceivingContract, Ownable {
         dth.transfer(taxRecipient, balance);
     }
 
-    function tokenFallback(
+    function onTokenTransfer(
         address _from,
         uint256 _value,
         bytes memory
-    ) public override {
+    ) public override returns (bool) {
+        require(
+            msg.sender == address(dth),
+            "can only be called by dth contract"
+        );
         emit ReceivedTaxes(msg.sender, _value, _from);
+        return true;
     }
 }

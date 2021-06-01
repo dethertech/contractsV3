@@ -2,23 +2,27 @@
 pragma solidity 0.8.3;
 
 abstract contract IZoneFactory {
-    function dth() external virtual view returns (address);
+    function dth() external view virtual returns (address);
 
-    function zoneToGeohash(address) external virtual view returns (bytes6);
+    function zoneToGeohash(address) external view virtual returns (bytes6);
 
-    function geohashToZone(bytes6) external virtual view returns (address);
+    function geohashToZone(bytes6) external view virtual returns (address);
 
-    function activeBidderToZone(address) external virtual view returns (address);
+    function activeBidderToZone(address)
+        external
+        view
+        virtual
+        returns (address);
 
-    function ownerToZone(address) external virtual view returns (address);
+    function ownerToZone(address) external view virtual returns (address);
 
-    function zoneImplementation() external virtual view returns (address);
+    function zoneImplementation() external view virtual returns (address);
 
-    function tellerImplementation() external virtual view returns (address);
+    function tellerImplementation() external view virtual returns (address);
 
-    function geo() external virtual view returns (address);
+    function geo() external view virtual returns (address);
 
-    function users() external virtual view returns (address);
+    function users() external view virtual returns (address);
 
     // function getActiveBidderZone(address _bidder) view external   returns(address);
     function transferOwnership(address newOwner) external virtual;
@@ -29,7 +33,7 @@ abstract contract IZoneFactory {
         address _zone
     ) external virtual;
 
-    function zoneExists(bytes6 _geohash) external virtual view returns (bool);
+    function zoneExists(bytes6 _geohash) external view virtual returns (bool);
 
     function proxyUpdateUserDailySold(
         bytes2 _countryCode,
@@ -73,9 +77,9 @@ abstract contract IZoneFactory {
 
     function removeCurrentZoneBidders() external virtual;
 
-    function tokenFallback(
-        address _from,
-        uint256 _value,
-        bytes calldata _data
-    ) external virtual;
+    // function onTokenTransfer(
+    //     address _from,
+    //     uint256 _value,
+    //     bytes calldata _data
+    // ) external virtual;
 }

@@ -2,11 +2,12 @@
 pragma solidity 0.8.3;
 
 import "./FeeTaxHelpers.sol";
-import "../interfaces/IDetherToken.sol";
+import "../interfaces/IAnyswapV3ERC20.sol";
 import "../interfaces/IZoneFactory.sol";
 import "../interfaces/IProtocolController.sol";
 import "./Zone.sol";
-import "./ProtocolController.sol";
+
+// import "./ProtocolController.sol";
 
 library AuctionUtils {
     using FeeTaxHelpers for uint256;
@@ -31,10 +32,7 @@ library AuctionUtils {
         uint256 _auctionId,
         address _zoneOwner,
         uint256 _staked
-    ) external view returns (
-        Auction memory auction,
-        uint256 highestBid
-    ) {
+    ) external view returns (Auction memory auction, uint256 highestBid) {
         require(
             _auctionId > 0 && _auctionId <= _auctionDetailsPtr.currentAuctionId,
             "auction does not exist"
@@ -42,7 +40,9 @@ library AuctionUtils {
 
         auction = _auctionDetailsPtr.auctionIdToAuction[_auctionId];
 
-        highestBid = _auctionDetailsPtr.auctionBids[_auctionId][auction.highestBidder];
+        highestBid = _auctionDetailsPtr.auctionBids[_auctionId][
+            auction.highestBidder
+        ];
 
         // If auction is ongoing, for current zone owner his existing zone stake is added to his bid
         if (
@@ -73,23 +73,32 @@ library AuctionUtils {
             "sender own already a zone"
         );
 
-        (uint256 burnAmount, uint256 bidAmount) = _dthAmount.calcEntryFee(_params.entryFee);
+        (uint256 burnAmount, uint256 bidAmount) =
+            _dthAmount.calcEntryFee(_params.entryFee);
         require(
-            bidAmount >
-            _staked + _staked * _params.minRaise / 100,
+            bidAmount > _staked + (_staked * _params.minRaise) / 100,
             "bid is lower than current zone stake"
         );
 
         _auctionDetailsPtr.currentAuctionId++;
-        _auctionDetailsPtr.auctionIdToAuction[_auctionDetailsPtr.currentAuctionId] = Auction({
+        _auctionDetailsPtr.auctionIdToAuction[
+            _auctionDetailsPtr.currentAuctionId
+        ] = Auction({
             state: uint256(AuctionState.Started),
             startTime: block.timestamp,
             endTime: block.timestamp + _params.bidPeriod,
             highestBidder: _sender // caller (challenger)
         });
-        _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][_sender] = bidAmount;
+        _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][
+            _sender
+        ] = bidAmount;
 
-        require(_protocolController.dth().transfer(address(_protocolController), burnAmount));
+        require(
+            _protocolController.dth().transfer(
+                address(_protocolController),
+                burnAmount
+            )
+        );
 
         zoneFactory.fillCurrentZoneBidder(_sender);
         zoneFactory.fillCurrentZoneBidder(_ownerAddress);
@@ -101,11 +110,21 @@ library AuctionUtils {
         );
     }
 
-    function endAuction(AuctionDetails storage _auctionDetailsPtr) external returns (uint256 auctionPtr, uint256 highestBid) {
-        Auction storage lastAuction = _auctionDetailsPtr.auctionIdToAuction[_auctionDetailsPtr.currentAuctionId];
-        highestBid = _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][lastAuction.highestBidder];
+    function endAuction(AuctionDetails storage _auctionDetailsPtr)
+        external
+        returns (uint256 auctionPtr, uint256 highestBid)
+    {
+        Auction storage lastAuction =
+            _auctionDetailsPtr.auctionIdToAuction[
+                _auctionDetailsPtr.currentAuctionId
+            ];
+        highestBid = _auctionDetailsPtr.auctionBids[
+            _auctionDetailsPtr.currentAuctionId
+        ][lastAuction.highestBidder];
         lastAuction.state = uint256(AuctionState.Ended);
-        assembly { auctionPtr := lastAuction.slot }
+        assembly {
+            auctionPtr := lastAuction.slot
+        }
     }
 
     function joinAuction(
@@ -132,44 +151,78 @@ library AuctionUtils {
 
         // AuctionDetails storage auctionsPtr;
         // assembly { auctionsPtr.slot := _auctionDetailsPtr }
-        Auction storage lastAuction = _auctionDetailsPtr.auctionIdToAuction[_auctionDetailsPtr.currentAuctionId];
+        Auction storage lastAuction =
+            _auctionDetailsPtr.auctionIdToAuction[
+                _auctionDetailsPtr.currentAuctionId
+            ];
 
-        uint256 currentHighestBid = _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][lastAuction.highestBidder];
+        uint256 currentHighestBid =
+            _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][
+                lastAuction.highestBidder
+            ];
 
         if (_sender == _ownerAddress) {
-            uint256 dthAddedBidsAmount = _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][_sender] + _dthAmount;
+            uint256 dthAddedBidsAmount =
+                _auctionDetailsPtr.auctionBids[
+                    _auctionDetailsPtr.currentAuctionId
+                ][_sender] + _dthAmount;
             // the current zone owner's stake also counts in his bid
             require(
                 _staked + dthAddedBidsAmount >=
-                currentHighestBid + currentHighestBid * _params.minRaise / 100,
+                    currentHighestBid +
+                        (currentHighestBid * _params.minRaise) /
+                        100,
                 "bid + already staked is less than current highest + minRaise"
             );
 
-            _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][_sender] = dthAddedBidsAmount;
+            _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][
+                _sender
+            ] = dthAddedBidsAmount;
         } else {
             // _sender is not the current zone owner
-            if (_auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][_sender] == 0) {
+            if (
+                _auctionDetailsPtr.auctionBids[
+                    _auctionDetailsPtr.currentAuctionId
+                ][_sender] == 0
+            ) {
                 // this is the first bid of this challenger, deduct entry fee
-                (uint256 burnAmount, uint256 bidAmount) = _dthAmount.calcEntryFee(_params.entryFee);
+                (uint256 burnAmount, uint256 bidAmount) =
+                    _dthAmount.calcEntryFee(_params.entryFee);
 
                 require(
                     bidAmount >=
-                    currentHighestBid + currentHighestBid * _params.minRaise / 100,
+                        currentHighestBid +
+                            (currentHighestBid * _params.minRaise) /
+                            100,
                     "bid is less than current highest + minRaise"
                 );
 
-                _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][_sender] = bidAmount;
-                require(_protocolController.dth().transfer(address(_protocolController), burnAmount));
+                _auctionDetailsPtr.auctionBids[
+                    _auctionDetailsPtr.currentAuctionId
+                ][_sender] = bidAmount;
+                require(
+                    _protocolController.dth().transfer(
+                        address(_protocolController),
+                        burnAmount
+                    )
+                );
             } else {
                 // not the first bid, no entry fee
-                uint256 newUserTotalBid = _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][_sender] + _dthAmount;
+                uint256 newUserTotalBid =
+                    _auctionDetailsPtr.auctionBids[
+                        _auctionDetailsPtr.currentAuctionId
+                    ][_sender] + _dthAmount;
                 require(
                     newUserTotalBid >=
-                    currentHighestBid + currentHighestBid * _params.minRaise / 100,
+                        currentHighestBid +
+                            (currentHighestBid * _params.minRaise) /
+                            100,
                     "bid is less than current highest + minRaise"
                 );
 
-                _auctionDetailsPtr.auctionBids[_auctionDetailsPtr.currentAuctionId][_sender] = newUserTotalBid;
+                _auctionDetailsPtr.auctionBids[
+                    _auctionDetailsPtr.currentAuctionId
+                ][_sender] = newUserTotalBid;
             }
         }
 
@@ -177,7 +230,12 @@ library AuctionUtils {
         lastAuction.highestBidder = _sender;
 
         _zoneFactory.fillCurrentZoneBidder(_sender);
-        _zoneFactory.emitBid(_geohash, _sender, _auctionDetailsPtr.currentAuctionId, _dthAmount);
+        _zoneFactory.emitBid(
+            _geohash,
+            _sender,
+            _auctionDetailsPtr.currentAuctionId,
+            _dthAmount
+        );
     }
 
     /// @notice withdraw losing bids from a specific auction
@@ -185,7 +243,7 @@ library AuctionUtils {
     function withdrawFromAuction(
         AuctionDetails storage _auctionDetailsPtr,
         uint256 _auctionId,
-        IDetherToken _dth,
+        IAnyswapV3ERC20 _dth,
         mapping(address => uint256) storage _withdrawableDth,
         IZoneFactory _zoneFactory
     ) external {
@@ -196,16 +254,22 @@ library AuctionUtils {
         );
 
         require(
-            _auctionDetailsPtr.auctionIdToAuction[_auctionId].state == uint256(AuctionUtils.AuctionState.Ended),
+            _auctionDetailsPtr.auctionIdToAuction[_auctionId].state ==
+                uint256(AuctionUtils.AuctionState.Ended),
             "cannot withdraw while auction is active"
         );
         require(
-            _auctionDetailsPtr.auctionIdToAuction[_auctionId].highestBidder != msg.sender,
+            _auctionDetailsPtr.auctionIdToAuction[_auctionId].highestBidder !=
+                msg.sender,
             "auction winner can not withdraw"
         );
-        require(_auctionDetailsPtr.auctionBids[_auctionId][msg.sender] > 0, "nothing to withdraw");
+        require(
+            _auctionDetailsPtr.auctionBids[_auctionId][msg.sender] > 0,
+            "nothing to withdraw"
+        );
 
-        uint256 withdrawAmount = _auctionDetailsPtr.auctionBids[_auctionId][msg.sender];
+        uint256 withdrawAmount =
+            _auctionDetailsPtr.auctionBids[_auctionId][msg.sender];
         _auctionDetailsPtr.auctionBids[_auctionId][msg.sender] = 0;
         if (_withdrawableDth[msg.sender] > 0) {
             withdrawAmount = withdrawAmount + _withdrawableDth[msg.sender];
@@ -219,12 +283,15 @@ library AuctionUtils {
     function withdrawFromAuctions(
         AuctionDetails storage _auctionDetailsPtr,
         uint256[] calldata _auctionIds,
-        IDetherToken _dth,
+        IAnyswapV3ERC20 _dth,
         mapping(address => uint256) storage _withdrawableDth,
         IZoneFactory _zoneFactory
     ) external {
         // even when country is disabled, can withdraw
-        require(_auctionDetailsPtr.currentAuctionId > 0, "there are no auctions");
+        require(
+            _auctionDetailsPtr.currentAuctionId > 0,
+            "there are no auctions"
+        );
 
         require(_auctionIds.length > 0, "auctionIds list is empty");
         require(
@@ -237,18 +304,22 @@ library AuctionUtils {
         for (uint256 idx = 0; idx < _auctionIds.length; idx++) {
             uint256 auctionId = _auctionIds[idx];
             require(
-                auctionId > 0 && auctionId <= _auctionDetailsPtr.currentAuctionId,
+                auctionId > 0 &&
+                    auctionId <= _auctionDetailsPtr.currentAuctionId,
                 "auctionId does not exist"
             );
             require(
-                _auctionDetailsPtr.auctionIdToAuction[auctionId].state == uint256(AuctionUtils.AuctionState.Ended),
+                _auctionDetailsPtr.auctionIdToAuction[auctionId].state ==
+                    uint256(AuctionUtils.AuctionState.Ended),
                 "cannot withdraw from running auction"
             );
             require(
-                _auctionDetailsPtr.auctionIdToAuction[auctionId].highestBidder != msg.sender,
+                _auctionDetailsPtr.auctionIdToAuction[auctionId]
+                    .highestBidder != msg.sender,
                 "auction winner can not withdraw"
             );
-            uint256 withdrawAmount = _auctionDetailsPtr.auctionBids[auctionId][msg.sender];
+            uint256 withdrawAmount =
+                _auctionDetailsPtr.auctionBids[auctionId][msg.sender];
             if (withdrawAmount > 0) {
                 // if user supplies the same auctionId multiple times in auctionIds,
                 // only the first one will get a withdrawal amount
@@ -257,7 +328,9 @@ library AuctionUtils {
             }
         }
         if (_withdrawableDth[msg.sender] > 0) {
-            withdrawAmountTotal = withdrawAmountTotal + _withdrawableDth[msg.sender];
+            withdrawAmountTotal =
+                withdrawAmountTotal +
+                _withdrawableDth[msg.sender];
             _withdrawableDth[msg.sender] = 0;
         }
         _zoneFactory.removeActiveBidder(msg.sender);

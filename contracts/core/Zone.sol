@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.3;
 
-import "../interfaces/IERC223ReceivingContract.sol";
-import "../interfaces/IDetherToken.sol";
+// import "../interfaces/IERC223ReceivingContract.sol";
+// import "../interfaces/IDetherToken.sol";
 import "../interfaces/IZoneFactory.sol";
+import "../interfaces/ITransferReceiver.sol";
 import "../interfaces/IZone.sol";
 import "../interfaces/ITeller.sol";
 import "../interfaces/IProtocolController.sol";
@@ -11,8 +12,8 @@ import "./AuctionUtils.sol";
 import "./FeeTaxHelpers.sol";
 import "./ZoneOwnerUtils.sol";
 
-contract Zone is IERC223ReceivingContract {
-
+// contract Zone is IERC223ReceivingContract {
+contract Zone is ITransferReceiver {
     using ZoneOwnerUtils for uint256;
     using AuctionUtils for AuctionUtils.AuctionDetails;
     using FeeTaxHelpers for uint256;
@@ -27,10 +28,10 @@ contract Zone is IERC223ReceivingContract {
 
     // same as IProtocolController.GlobalParams, except floorStakePrice, which is per-zone
     struct ZoneParams {
-        uint256 bidPeriod;             // Time during everyon can bid, when an auction is opened
-        uint256 cooldownPeriod;        // Time when no auction can be opened after an auction end
-        uint256 entryFee;              // Amount needed to be paid when starting an auction
-        uint256 zoneTax;               // Amount of taxes raised
+        uint256 bidPeriod; // Time during everyon can bid, when an auction is opened
+        uint256 cooldownPeriod; // Time when no auction can be opened after an auction end
+        uint256 entryFee; // Amount needed to be paid when starting an auction
+        uint256 zoneTax; // Amount of taxes raised
         uint256 minRaise;
         uint256 floorStakePrice;
     }
@@ -90,7 +91,7 @@ contract Zone is IERC223ReceivingContract {
         bytes6 _geohash,
         address _zoneOwner,
         uint256 _dthAmount,
-        address /* _dth */,
+        address, /* _dth */
         address _zoneFactory,
         address _teller,
         address _protocolController
@@ -108,7 +109,9 @@ contract Zone is IERC223ReceivingContract {
         zoneFactory = IZoneFactory(_zoneFactory);
 
         uint256 zoneOwnerPtr;
-        assembly { zoneOwnerPtr := zoneOwner.slot }
+        assembly {
+            zoneOwnerPtr := zoneOwner.slot
+        }
         zoneOwnerPtr.init(_zoneOwner, block.timestamp, _dthAmount, 0);
 
         auctions.currentAuctionId = 0;
@@ -123,15 +126,18 @@ contract Zone is IERC223ReceivingContract {
     //
     // ------------------------------------------------
 
-
-    function getZoneOwner() public view returns (
-        address addr,
-        uint256 startTime,
-        uint256 staked,
-        uint256 balance,
-        uint256 lastTaxTime,
-        uint256 auctionId
-    ) {
+    function getZoneOwner()
+        public
+        view
+        returns (
+            address addr,
+            uint256 startTime,
+            uint256 staked,
+            uint256 balance,
+            uint256 lastTaxTime,
+            uint256 auctionId
+        )
+    {
         return (
             zoneOwner.addr,
             zoneOwner.startTime,
@@ -141,12 +147,18 @@ contract Zone is IERC223ReceivingContract {
             zoneOwner.auctionId
         );
     }
+
     function ownerAddr() external view returns (address) {
         return zoneOwner.addr;
     }
 
-    function getAuction(uint256 _auctionId) public view returns (AuctionUtils.Auction memory auction, uint256 highestBid) {
-        return auctions.getAuction(_auctionId, zoneOwner.addr, zoneOwner.staked);
+    function getAuction(uint256 _auctionId)
+        public
+        view
+        returns (AuctionUtils.Auction memory auction, uint256 highestBid)
+    {
+        return
+            auctions.getAuction(_auctionId, zoneOwner.addr, zoneOwner.staked);
     }
 
     function auctionExists(uint256 _auctionId) external view returns (bool) {
@@ -159,7 +171,11 @@ contract Zone is IERC223ReceivingContract {
         return auctions.currentAuctionId;
     }
 
-    function auctionBids(uint256 _auctionId, address _user) public view returns (uint256) {
+    function auctionBids(uint256 _auctionId, address _user)
+        public
+        view
+        returns (uint256)
+    {
         return auctions.auctionBids[_auctionId][_user];
     }
 
@@ -178,7 +194,11 @@ contract Zone is IERC223ReceivingContract {
     {
         auctionId = auctions.currentAuctionId;
         AuctionUtils.Auction memory auction;
-        (auction, highestBid) = auctions.getAuction(auctionId, zoneOwner.addr, zoneOwner.staked);
+        (auction, highestBid) = auctions.getAuction(
+            auctionId,
+            zoneOwner.addr,
+            zoneOwner.staked
+        );
         state = auction.state;
         startTime = auction.startTime;
         endTime = auction.endTime;
@@ -186,8 +206,11 @@ contract Zone is IERC223ReceivingContract {
     }
 
     function _setParams() private {
-        IProtocolController.GlobalParams memory globalParams = protocolController.getGlobalParams();
-        zoneParams.floorStakePrice = protocolController.getCountryFloorPrice(country);
+        IProtocolController.GlobalParams memory globalParams =
+            protocolController.getGlobalParams();
+        zoneParams.floorStakePrice = protocolController.getCountryFloorPrice(
+            country
+        );
         zoneParams.bidPeriod = globalParams.bidPeriod;
         zoneParams.cooldownPeriod = globalParams.cooldownPeriod;
         zoneParams.entryFee = globalParams.entryFee;
@@ -198,7 +221,9 @@ contract Zone is IERC223ReceivingContract {
     function _removeZoneOwner(bool fromRelease) private {
         // if we call this function from release() we shouldn't update withdrawableDth as we already send dth
         if (!fromRelease) {
-            withdrawableDth[zoneOwner.addr] = withdrawableDth[zoneOwner.addr] + (zoneOwner.balance);
+            withdrawableDth[zoneOwner.addr] =
+                withdrawableDth[zoneOwner.addr] +
+                (zoneOwner.balance);
         }
 
         if (teller.hasTeller()) {
@@ -218,39 +243,58 @@ contract Zone is IERC223ReceivingContract {
             return; // short-circuit: multiple txes in 1 block OR many blocks but in same Auction
         }
 
-        uint256 taxAmount = zoneOwner.staked.calcHarbergerTax(
-            zoneOwner.lastTaxTime,
-            block.timestamp,
-            zoneParams.zoneTax
-        );
+        uint256 taxAmount =
+            zoneOwner.staked.calcHarbergerTax(
+                zoneOwner.lastTaxTime,
+                block.timestamp,
+                zoneParams.zoneTax
+            );
 
         if (taxAmount > zoneOwner.balance) {
             // zone owner does not have enough balance, remove him as zone owner
             uint256 oldZoneOwnerBalance = zoneOwner.balance;
             _removeZoneOwner(false);
 
-            require(protocolController.dth().transfer(address(protocolController), oldZoneOwnerBalance));
+            require(
+                protocolController.dth().transfer(
+                    address(protocolController),
+                    oldZoneOwnerBalance
+                )
+            );
         } else {
             // zone owner can pay due taxes
             uint256 zoneOwnerPtr;
-            assembly { zoneOwnerPtr := zoneOwner.slot }
+            assembly {
+                zoneOwnerPtr := zoneOwner.slot
+            }
             zoneOwnerPtr.payTax(taxAmount);
             (address referrer, uint256 refFee) = teller.getReferrer();
             if (referrer != address(0x00) && refFee > 0) {
-                uint256 referralFee = taxAmount * refFee / 1000;
+                uint256 referralFee = (taxAmount * refFee) / 1000;
 
                 // to avoid Dos with revert if referrer is contract
-                bytes memory payload = abi.encodeWithSignature(
-                    "transfer(address,uint256)",
-                    referrer,
-                    referralFee
-                );
+                bytes memory payload =
+                    abi.encodeWithSignature(
+                        "transfer(address,uint256)",
+                        referrer,
+                        referralFee
+                    );
                 address(protocolController.dth()).call(payload);
 
                 // require(dth.transfer(referrer, referralFee));
-                require(protocolController.dth().transfer(address(protocolController), taxAmount - referralFee));
+                require(
+                    protocolController.dth().transfer(
+                        address(protocolController),
+                        taxAmount - referralFee
+                    )
+                );
             } else {
-                require(protocolController.dth().transfer(address(protocolController), taxAmount));
+                require(
+                    protocolController.dth().transfer(
+                        address(protocolController),
+                        taxAmount
+                    )
+                );
             }
         }
     }
@@ -262,13 +306,20 @@ contract Zone is IERC223ReceivingContract {
     function _endAuction() private {
         (uint256 lastAuctionPtr, uint256 highestBid) = auctions.endAuction();
         AuctionUtils.Auction storage lastAuction;
-        assembly { lastAuction.slot := lastAuctionPtr }
+        assembly {
+            lastAuction.slot := lastAuctionPtr
+        }
 
         uint256 zoneOwnerPtr;
-        assembly { zoneOwnerPtr := zoneOwner.slot }
+        assembly {
+            zoneOwnerPtr := zoneOwner.slot
+        }
 
         if (zoneOwner.addr == lastAuction.highestBidder) {
-            zoneOwnerPtr.extendZoneOwnership(highestBid, auctions.currentAuctionId);
+            zoneOwnerPtr.extendZoneOwnership(
+                highestBid,
+                auctions.currentAuctionId
+            );
         } else {
             // we need to update the zone owner
             _removeZoneOwner(false);
@@ -278,14 +329,21 @@ contract Zone is IERC223ReceivingContract {
                 address(this)
             );
 
-            zoneOwnerPtr.init(lastAuction.highestBidder, lastAuction.endTime, highestBid, auctions.currentAuctionId);
+            zoneOwnerPtr.init(
+                lastAuction.highestBidder,
+                lastAuction.endTime,
+                highestBid,
+                auctions.currentAuctionId
+            );
         }
 
-        zoneOwnerPtr.payTax(zoneOwner.staked.calcHarbergerTax(
-            lastAuction.endTime,
-            block.timestamp,
-            zoneParams.zoneTax
-        ));
+        zoneOwnerPtr.payTax(
+            zoneOwner.staked.calcHarbergerTax(
+                lastAuction.endTime,
+                block.timestamp,
+                zoneParams.zoneTax
+            )
+        );
 
         zoneFactory.removeActiveBidder(lastAuction.highestBidder);
         zoneFactory.removeCurrentZoneBidders();
@@ -303,13 +361,16 @@ contract Zone is IERC223ReceivingContract {
     function processState() public {
         if (
             auctions.currentAuctionId > 0 &&
-            auctions.auctionIdToAuction[auctions.currentAuctionId].state == uint256(AuctionUtils.AuctionState.Started)
+            auctions.auctionIdToAuction[auctions.currentAuctionId].state ==
+            uint256(AuctionUtils.AuctionState.Started)
         ) {
             // while uaction is running, no taxes need to be paid
 
             // handling of taxes around change of zone ownership are handled inside _endAuction
-            if (block.timestamp >= auctions.auctionIdToAuction[auctions.currentAuctionId].endTime)
-                _endAuction();
+            if (
+                block.timestamp >=
+                auctions.auctionIdToAuction[auctions.currentAuctionId].endTime
+            ) _endAuction();
         } else {
             // no running auction, currentAuctionId could be zero
             if (zoneOwner.addr != address(0)) _handleTaxPayment();
@@ -323,7 +384,8 @@ contract Zone is IERC223ReceivingContract {
     ) private onlyWhenZoneHasOwner {
         if (
             auctions.currentAuctionId > 0 &&
-            auctions.auctionIdToAuction[auctions.currentAuctionId].state == uint256(AuctionUtils.AuctionState.Started)
+            auctions.auctionIdToAuction[auctions.currentAuctionId].state ==
+            uint256(AuctionUtils.AuctionState.Started)
         ) {
             auctions.joinAuction(
                 _sender,
@@ -340,14 +402,17 @@ contract Zone is IERC223ReceivingContract {
             if (zoneOwner.auctionId == 0) {
                 // current zone owner did not become owner by winning an auction, but by creating this zone or caliming it when it was free
                 require(
-                    block.timestamp > zoneOwner.startTime + zoneParams.cooldownPeriod,
+                    block.timestamp >
+                        zoneOwner.startTime + zoneParams.cooldownPeriod,
                     "cooldown period did not end yet"
                 );
             } else {
                 // current zone owner became owner by winning an auction (which has ended)
                 require(
                     block.timestamp >
-                    auctions.auctionIdToAuction[auctions.currentAuctionId].endTime + zoneParams.cooldownPeriod,
+                        auctions.auctionIdToAuction[auctions.currentAuctionId]
+                            .endTime +
+                            zoneParams.cooldownPeriod,
                     "cooldown period did not end yet"
                 );
             }
@@ -387,7 +452,9 @@ contract Zone is IERC223ReceivingContract {
         // NOTE: empty zone claim will not have entry fee deducted, its not bidding it's taking immediately
         zoneFactory.changeOwner(_sender, zoneOwner.addr, address(this));
         uint256 zoneOwnerPtr;
-        assembly { zoneOwnerPtr := zoneOwner.slot }
+        assembly {
+            zoneOwnerPtr := zoneOwner.slot
+        }
         zoneOwnerPtr.init(_sender, block.timestamp, _dthAmount, 0);
         zoneFactory.emitClaimFreeZone(geohash, _sender, _dthAmount);
     }
@@ -418,11 +485,11 @@ contract Zone is IERC223ReceivingContract {
     /// @param _from Who send DTH to this contract
     /// @param _value How much DTH was sent to this contract
     /// @param _data Additional bytes data sent
-    function tokenFallback(
+    function onTokenTransfer(
         address _from,
         uint256 _value,
         bytes memory _data // onlyWhenZoneEnabled
-    ) public override {
+    ) public override returns (bool) {
         require(address(teller) != address(0), "contract not yet initialized");
         require(
             msg.sender == address(protocolController.dth()),
@@ -446,6 +513,7 @@ contract Zone is IERC223ReceivingContract {
             // topUp
             _topUp(_value);
         }
+        return (true);
     }
 
     /// @notice release zone ownership
@@ -469,7 +537,7 @@ contract Zone is IERC223ReceivingContract {
 
         _removeZoneOwner(true);
 
-        // if msg.sender is a contract, the DTH ERC223 contract will try to call tokenFallback
+        // if msg.sender is a contract, the DTH ERC223 contract will try to call onTokenTransfer
         // on msg.sender, this could lead to a reentrancy. But we prevent this by resetting
         // zoneOwner before we do dth.transfer(msg.sender)
         require(protocolController.dth().transfer(msg.sender, ownerBalance));
@@ -483,14 +551,24 @@ contract Zone is IERC223ReceivingContract {
     function withdrawFromAuction(
         uint256 _auctionId // GAS COST +/- 125.070
     ) external updateState {
-        auctions.withdrawFromAuction(_auctionId, protocolController.dth(), withdrawableDth, zoneFactory);
+        auctions.withdrawFromAuction(
+            _auctionId,
+            protocolController.dth(),
+            withdrawableDth,
+            zoneFactory
+        );
     }
 
     /// @notice withdraw from a given list of auction ids
     function withdrawFromAuctions(
         uint256[] calldata _auctionIds // GAS COST +/- 127.070
     ) external updateState {
-        auctions.withdrawFromAuctions(_auctionIds, protocolController.dth(), withdrawableDth, zoneFactory);
+        auctions.withdrawFromAuctions(
+            _auctionIds,
+            protocolController.dth(),
+            withdrawableDth,
+            zoneFactory
+        );
     }
 
     // - bids in past auctions
