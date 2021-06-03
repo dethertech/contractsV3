@@ -202,7 +202,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
           expect(proposal.startDate.toString()).to.equal(blockTimestamp.toString());
           expect(proposal.snapshotBlock.toString()).to.equal((blockNr-1).toString());
           expect(proposal.minAcceptQuorum.toString()).to.equal(toVotingPerc(25).toString());
@@ -330,7 +330,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
           expect(proposal.startDate.toString()).to.equal(blockTimestamp.toString());
           expect(proposal.snapshotBlock.toString()).to.equal((blockNr-1).toString());
           expect(proposal.minAcceptQuorum.toString()).to.equal(toVotingPerc(25).toString());
@@ -369,7 +369,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
           expect(proposal.yea.toString()).to.equal(ethToWei(1));
           expect(proposal.nay.toString()).to.equal('0');
         });
@@ -389,7 +389,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await votingInstance.placeVote(1, false, { from: user2 });
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
           expect(proposal.yea.toString()).to.equal('0');
           expect(proposal.nay.toString()).to.equal(ethToWei(1));
         });
@@ -437,6 +437,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const tx = await votingInstance.execute(1, { from: user3 });
 
           await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
+
+          expect((await votingInstance.getProposal('1')).state.toString()).to.equal('2');
         });
 
         it("can execute proposal with that did not enough % of possible votes, but doesn't perform the action", async () => {
@@ -450,6 +452,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const tx = await votingInstance.execute(1, { from: user3 });
 
           await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
+
+          expect((await votingInstance.getProposal('1')).state.toString()).to.equal('2');
         });
 
         it("success", async () => {
@@ -465,7 +469,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           let proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
 
           const oldGlobalParams = await protocolControllerInstance.globalParams();
           expect(oldGlobalParams.bidPeriod.toString()).to.equal((48*60*60).toString());
@@ -478,7 +482,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(true);
+          expect(proposal.state.toString()).to.equal('1');
           expect(proposal.yea.toString()).to.equal(ethToWei(7));
           expect(proposal.nay.toString()).to.equal(ethToWei(3));
           expect(proposal.votingPower.toString()).to.equal(ethToWei(10));
@@ -553,7 +557,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
           expect(proposal.startDate.toString()).to.equal(blockTimestamp.toString());
           expect(proposal.snapshotBlock.toString()).to.equal((blockNr-1).toString());
           expect(proposal.minAcceptQuorum.toString()).to.equal(toVotingPerc(25).toString());
@@ -681,7 +685,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
           expect(proposal.startDate.toString()).to.equal(blockTimestamp.toString());
           expect(proposal.snapshotBlock.toString()).to.equal((blockNr-1).toString());
           expect(proposal.minAcceptQuorum.toString()).to.equal(toVotingPerc(25).toString());
@@ -720,7 +724,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
           expect(proposal.yea.toString()).to.equal(ethToWei(1));
           expect(proposal.nay.toString()).to.equal('0');
         });
@@ -740,7 +744,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await votingInstance.placeVote(1, false, { from: user2 });
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
           expect(proposal.yea.toString()).to.equal('0');
           expect(proposal.nay.toString()).to.equal(ethToWei(1));
         });
@@ -788,6 +792,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const tx = await votingInstance.execute(1, { from: user3 });
 
           await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
+
+          expect((await votingInstance.getProposal('1')).state.toString()).to.equal('2');
         });
 
         it("can execute proposal with that did not enough % of possible votes, but doesn't perform the action", async () => {
@@ -801,6 +807,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const tx = await votingInstance.execute(1, { from: user3 });
 
           await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
+
+          expect((await votingInstance.getProposal('1')).state.toString()).to.equal('2');
         });
 
         it("success", async () => {
@@ -816,7 +824,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           let proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
 
           const oldCountryFloorPrice = await protocolControllerInstance.floorStakesPrices(asciiToHex('CG'));
           expect(oldCountryFloorPrice.toString()).to.equal(ethToWei(0));
@@ -824,8 +832,9 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await votingInstance.execute(1, { from: user3 });
 
           proposal = await votingInstance.getProposal(1);
+          expect(proposal.state.toString()).to.equal('1');
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(true);
+          expect(proposal.state.toString()).to.equal('1');
           expect(proposal.yea.toString()).to.equal(ethToWei(7));
           expect(proposal.nay.toString()).to.equal(ethToWei(3));
           expect(proposal.votingPower.toString()).to.equal(ethToWei(10));
@@ -916,7 +925,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
           expect(proposal.startDate.toString()).to.equal(blockTimestamp.toString());
           expect(proposal.snapshotBlock.toString()).to.equal((blockNr-1).toString());
           expect(proposal.minAcceptQuorum.toString()).to.equal(toVotingPerc(25).toString());
@@ -1056,7 +1065,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
           expect(proposal.startDate.toString()).to.equal(blockTimestamp.toString());
           expect(proposal.snapshotBlock.toString()).to.equal((blockNr-1).toString());
           expect(proposal.minAcceptQuorum.toString()).to.equal(toVotingPerc(25).toString());
@@ -1095,7 +1104,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
           expect(proposal.yea.toString()).to.equal(ethToWei(1));
           expect(proposal.nay.toString()).to.equal('0');
         });
@@ -1115,7 +1124,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await votingInstance.placeVote(1, false, { from: user2 });
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
           expect(proposal.yea.toString()).to.equal('0');
           expect(proposal.nay.toString()).to.equal(ethToWei(1));
         });
@@ -1165,6 +1174,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const tx = await votingInstance.execute(1, { from: user3 });
 
           await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
+
+          expect((await votingInstance.getProposal('1')).state.toString()).to.equal('2');
         });
 
         it("can execute proposal with not enough % of possible votes, but doesn't perform the action", async () => {
@@ -1178,6 +1189,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           const tx = await votingInstance.execute(1, { from: user3 });
 
           await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
+
+          expect((await votingInstance.getProposal('1')).state.toString()).to.equal('2');
         });
 
         it("success", async () => {
@@ -1193,7 +1206,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           let proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
 
           const oldProtocolControllerBalanceDth = (await dthInstance.balanceOf(protocolControllerInstance.address)).toString();
           const oldUser6BalanceDth = (await dthInstance.balanceOf(user6)).toString();
@@ -1203,8 +1216,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await votingInstance.execute(1, { from: user3 });
 
           proposal = await votingInstance.getProposal(1);
+          expect(proposal.state.toString()).to.equal('1');
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(true);
           expect(proposal.yea.toString()).to.equal(ethToWei(7));
           expect(proposal.nay.toString()).to.equal(ethToWei(3));
           expect(proposal.votingPower.toString()).to.equal(ethToWei(10));
@@ -1258,11 +1271,11 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           let proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
 
           proposal = await votingInstance.getProposal(2);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
 
           await timeTravel.inSecs(7*24*60*60);
 
@@ -1273,13 +1286,13 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal('0');
 
           await votingInstance.execute(1, { from: user3 });
 
           proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(true);
+          expect(proposal.state.toString()).to.equal('1');
 
           const newProtocolControllerBalanceDth_1 = (await dthInstance.balanceOf(protocolControllerInstance.address)).toString();
           const newUser6BalanceDth_1 = (await dthInstance.balanceOf(user6)).toString();
@@ -1293,7 +1306,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           proposal = await votingInstance.getProposal(2);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(true);
+          expect(proposal.state.toString()).to.equal('1');
 
           const newProtocolControllerBalanceDth_2 = (await dthInstance.balanceOf(protocolControllerInstance.address)).toString();
           const newUser6BalanceDth_2 = (await dthInstance.balanceOf(user6)).toString();
