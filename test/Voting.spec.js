@@ -275,6 +275,22 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           )
         });
 
+        it("can create new proposal if existing proposal ended, didnt get enough support, but was executed", async () => {
+          await wrapDth(user1, 1);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.GlobalParams,
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [2*60*60, 1*60*60, 10, 100, 40]),
+            { from: user1 }
+          );
+
+          await timeTravel.inSecs(7*24*60*60);
+
+          const tx = await votingInstance.execute(1, { from: user1 });
+
+          await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
+        });
+
         it("can create new proposal if old proposal ended and was executed", async () => {
           await wrapDth(user1, 1);
 
@@ -408,7 +424,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           )
         });
 
-        it("cannot execute proposal with not enough % of casted votes", async () => {
+        it("can execute proposal with not enough % of casted votes, but doesn't perform the action", async () => {
           await votingInstance.placeVote(1, true, { from: user1 });
           await votingInstance.placeVote(1, false, { from: user2 });
           await votingInstance.placeVote(1, false, { from: user3 });
@@ -418,13 +434,12 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await timeTravel.inSecs(7*24*60*60);
 
-          await expectRevert2(
-            votingInstance.execute(1, { from: user3 }),
-            'not enough support in casted votes'
-          )
+          const tx = await votingInstance.execute(1, { from: user3 });
+
+          await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
         });
 
-        it("cannot execute proposal with that did not enough % of possible votes", async () => {
+        it("can execute proposal with that did not enough % of possible votes, but doesn't perform the action", async () => {
           await votingInstance.placeVote(1, false, { from: user1 });
           await votingInstance.placeVote(1, true, { from: user3 });
           // casted votes = 66% yea, 33% nay
@@ -432,10 +447,9 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await timeTravel.inSecs(7*24*60*60);
 
-          await expectRevert2(
-            votingInstance.execute(1, { from: user3 }),
-            'not enough support in possible votes'
-          )
+          const tx = await votingInstance.execute(1, { from: user3 });
+
+          await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
         });
 
         it("success", async () => {
@@ -612,6 +626,22 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           )
         });
 
+        it("can create new proposal if existing proposal ended, didnt get enough support, but was executed", async () => {
+          await wrapDth(user1, 1);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.CountryFloorPrice,
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [asciiToHex('CG'), ethToWei(7)]),
+            { from: user1 }
+          );
+
+          await timeTravel.inSecs(7*24*60*60);
+
+          const tx = await votingInstance.execute(1, { from: user1 });
+
+          await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
+        });
+
         it("can create new proposal if old proposal ended and was executed", async () => {
           await wrapDth(user1, 1);
 
@@ -745,7 +775,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           )
         });
 
-        it("cannot execute proposal with not enough % of casted votes", async () => {
+        it("can execute proposal with not enough % of casted votes, but doesn't perform the action", async () => {
           await votingInstance.placeVote(1, true, { from: user1 });
           await votingInstance.placeVote(1, false, { from: user2 });
           await votingInstance.placeVote(1, false, { from: user3 });
@@ -755,13 +785,12 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await timeTravel.inSecs(7*24*60*60);
 
-          await expectRevert2(
-            votingInstance.execute(1, { from: user3 }),
-            'not enough support'
-          )
+          const tx = await votingInstance.execute(1, { from: user3 });
+
+          await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
         });
 
-        it("cannot execute proposal with that did not enough % of possible votes", async () => {
+        it("can execute proposal with that did not enough % of possible votes, but doesn't perform the action", async () => {
           await votingInstance.placeVote(1, false, { from: user1 });
           await votingInstance.placeVote(1, true, { from: user3 });
           // casted votes = 66% yea, 33% nay
@@ -769,10 +798,9 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await timeTravel.inSecs(7*24*60*60);
 
-          await expectRevert2(
-            votingInstance.execute(1, { from: user3 }),
-            'not enough support in possible votes'
-          )
+          const tx = await votingInstance.execute(1, { from: user3 });
+
+          await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
         });
 
         it("success", async () => {
@@ -967,6 +995,24 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           )
         });
 
+        it("can create new proposal if existing proposal ended, didnt get enough support, but was executed", async () => {
+          await wrapDth(user1, 1);
+
+          await payTaxesToProtocolController(user1, 7);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.SendDth,
+            encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(6)]),
+            { from: user1 }
+          );
+
+          await timeTravel.inSecs(7*24*60*60);
+
+          const tx = await votingInstance.execute(1, { from: user1 });
+
+          await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
+        });
+
         it("can create new proposal if old proposal ended and was executed", async () => {
           await wrapDth(user1, 1);
 
@@ -1106,7 +1152,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           )
         });
 
-        it("cannot execute proposal with not enough % of casted votes", async () => {
+        it("can execute proposal with not enough % of casted votes, but doesn't perform the action", async () => {
           await votingInstance.placeVote(1, true, { from: user1 });
           await votingInstance.placeVote(1, false, { from: user2 });
           await votingInstance.placeVote(1, false, { from: user3 });
@@ -1116,13 +1162,12 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await timeTravel.inSecs(7*24*60*60);
 
-          await expectRevert2(
-            votingInstance.execute(1, { from: user3 }),
-            'not enough support in casted votes'
-          )
+          const tx = await votingInstance.execute(1, { from: user3 });
+
+          await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
         });
 
-        it("cannot execute proposal with that did not enough % of possible votes", async () => {
+        it("can execute proposal with not enough % of possible votes, but doesn't perform the action", async () => {
           await votingInstance.placeVote(1, false, { from: user1 });
           await votingInstance.placeVote(1, true, { from: user3 });
           // casted votes = 66% yea, 33% nay
@@ -1130,10 +1175,9 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await timeTravel.inSecs(7*24*60*60);
 
-          await expectRevert2(
-            votingInstance.execute(1, { from: user3 }),
-            'not enough support in possible votes'
-          )
+          const tx = await votingInstance.execute(1, { from: user3 });
+
+          await expectEvent.inTransaction(tx.receipt.transactionHash, votingInstance, 'ProposalFailed', { proposalId: '1' });
         });
 
         it("success", async () => {

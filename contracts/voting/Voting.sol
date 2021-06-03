@@ -76,6 +76,7 @@ contract Voting {
     event NewProposal(uint256 indexed proposalId, address indexed creator);
     event PlacedVote(uint256 indexed proposalId, address indexed voter, bool voteYes, uint256 stake);
     event ExecutedProposal(uint256 indexed proposalId, address indexed executor);
+    event ProposalFailed(uint256 indexed proposalId);
 
     // ------------------------------------------------
     //
@@ -373,12 +374,18 @@ contract Voting {
 
         require(_proposalEnded(proposal), "proposal did not yet end");
         require(!proposal.executed, "proposal already executed");
-        require(_isValuePct(proposal.yea, proposal.yea + proposal.nay, proposal.supportRequiredPct), "not enough support in casted votes");
-        require(_isValuePct(proposal.yea, proposal.votingPower, proposal.minAcceptQuorumPct), "not enough support in possible votes");
 
         proposal.executed = true;
         userToProposalId[proposal.creator] = 0;
         proposalHashToId[proposal.argsHash] = 0;
+
+        bool successCasted = _isValuePct(proposal.yea, proposal.yea + proposal.nay, proposal.supportRequiredPct);
+        bool successAll = _isValuePct(proposal.yea, proposal.votingPower, proposal.minAcceptQuorumPct);
+
+        if (!successCasted || !successAll) {
+          emit ProposalFailed(_proposalId);
+          return;
+        }
 
         if (proposal.kind == ProposalKind.GlobalParams) {
           (
