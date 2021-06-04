@@ -13,6 +13,7 @@ contract Voting {
 
     enum VoterState {Absent, Yea, Nay}
     enum ProposalKind {GlobalParams, CountryFloorPrice, SendDth}
+    enum ProposalExecutionState {NotYetExecuted, Succeeded, Failed}
 
     // ------------------------------------------------
     //
@@ -26,7 +27,7 @@ contract Voting {
         uint64 supportRequiredPct;
         uint64 minAcceptQuorumPct;
         address creator;
-        bool executed;
+        ProposalExecutionState state;
         ProposalKind kind;
         uint256 yea;
         uint256 nay;
@@ -92,10 +93,7 @@ contract Voting {
         uint256 indexed proposalId,
         address indexed executor
     );
-    event CanceledProposal(
-        uint256 indexed proposalId,
-        address indexed executor
-    );
+    event ProposalFailed(uint256 indexed proposalId);
 
     // ------------------------------------------------
     //
@@ -199,7 +197,7 @@ contract Voting {
         view
         returns (
             bool open,
-            bool executed,
+            ProposalExecutionState state,
             uint64 startDate,
             uint64 snapshotBlock,
             uint64 supportRequired,
@@ -218,7 +216,7 @@ contract Voting {
         Proposal storage proposal = proposals[_proposalId];
 
         open = !_proposalEnded(proposal);
-        executed = proposal.executed;
+        state = proposal.state;
         startDate = proposal.startDate;
         snapshotBlock = proposal.snapshotBlock;
         supportRequired = proposal.supportRequiredPct;
@@ -402,6 +400,7 @@ contract Voting {
         userToProposalId[msg.sender] = proposalId;
 
         Proposal storage proposal = proposals[proposalId];
+        // proposal.state will default to enum value 0, which stands for "Active"
         proposal.startDate = uint64(block.timestamp);
         proposal.snapshotBlock = snapshotBlock;
         proposal.supportRequiredPct = supportRequiredPct;
@@ -458,51 +457,39 @@ contract Voting {
         emit PlacedVote(_proposalId, msg.sender, _voteYes, voterStake);
     }
 
-    // need to be called by someone, who create a proposal and was not accepted
-    // to be able to create a new one.
-    function cancelProposal(uint256 _proposalId) external {
-        require(_proposalIdExists(_proposalId), "proposal does not exist");
-
-        Proposal storage proposal = proposals[_proposalId];
-
-        require(_proposalEnded(proposal), "proposal did not yet end");
-        require(!proposal.executed, "proposal already executed");
-        // require(_isValuePct(proposal.yea, proposal.yea + proposal.nay, proposal.supportRequiredPct), "not enough support in casted votes");
-        // require(_isValuePct(proposal.yea, proposal.votingPower, proposal.minAcceptQuorumPct), "not enough support in possible votes");
-
-        proposal.executed = true;
-        userToProposalId[proposal.creator] = 0;
-        proposalHashToId[proposal.argsHash] = 0;
-        emit CanceledProposal(_proposalId, msg.sender);
-    }
-
     function execute(uint256 _proposalId) external {
         require(_proposalIdExists(_proposalId), "proposal does not exist");
 
         Proposal storage proposal = proposals[_proposalId];
 
         require(_proposalEnded(proposal), "proposal did not yet end");
-        require(!proposal.executed, "proposal already executed");
         require(
+            proposal.state == ProposalExecutionState.NotYetExecuted,
+            "proposal already executed"
+        );
+        userToProposalId[proposal.creator] = 0;
+        proposalHashToId[proposal.argsHash] = 0;
+
+        bool successCasted =
             _isValuePct(
                 proposal.yea,
                 proposal.yea + proposal.nay,
                 proposal.supportRequiredPct
-            ),
-            "not enough support in casted votes"
-        );
-        require(
+            );
+        bool successAll =
             _isValuePct(
                 proposal.yea,
                 proposal.votingPower,
                 proposal.minAcceptQuorumPct
-            ),
-            "not enough support in possible votes"
-        );
+            );
 
-        proposal.executed = true;
-        userToProposalId[proposal.creator] = 0;
-        proposalHashToId[proposal.argsHash] = 0;
+        if (!successCasted || !successAll) {
+            proposal.state = ProposalExecutionState.Failed;
+            emit ProposalFailed(_proposalId);
+            return;
+        }
+
+        proposal.state = ProposalExecutionState.Succeeded;
 
         if (proposal.kind == ProposalKind.GlobalParams) {
             (
