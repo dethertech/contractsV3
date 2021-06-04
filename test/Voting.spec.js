@@ -296,7 +296,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
           expect(proposal.startDate.toString()).to.equal(
             blockTimestamp.toString()
           );
@@ -413,6 +413,33 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           );
         });
 
+        it("can create new proposal if existing proposal ended, didnt get enough support, but was executed", async () => {
+          await wrapDth(user1, 1);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.GlobalParams,
+            encodeProposalArgs(PROPOSAL_KIND.GlobalParams, [
+              2 * 60 * 60,
+              1 * 60 * 60,
+              10,
+              100,
+              40,
+            ]),
+            { from: user1 }
+          );
+
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
+
+          const tx = await votingInstance.execute(1, { from: user1 });
+
+          await expectEvent.inTransaction(
+            tx.receipt.transactionHash,
+            votingInstance,
+            "ProposalFailed",
+            { proposalId: "1" }
+          );
+        });
+
         it("can create new proposal if old proposal ended and was executed", async () => {
           await wrapDth(user1, 1);
 
@@ -470,7 +497,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
           expect(proposal.startDate.toString()).to.equal(
             blockTimestamp.toString()
           );
@@ -517,7 +544,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
           expect(proposal.yea.toString()).to.equal(ethToWei(1));
           expect(proposal.nay.toString()).to.equal("0");
         });
@@ -536,7 +563,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await votingInstance.placeVote(1, false, { from: user2 });
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
           expect(proposal.yea.toString()).to.equal("0");
           expect(proposal.nay.toString()).to.equal(ethToWei(1));
         });
@@ -577,7 +604,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           );
         });
 
-        it("cannot execute proposal with not enough % of casted votes", async () => {
+        it("can execute proposal with not enough % of casted votes, but doesn't perform the action", async () => {
           await votingInstance.placeVote(1, true, { from: user1 });
           await votingInstance.placeVote(1, false, { from: user2 });
           await votingInstance.placeVote(1, false, { from: user3 });
@@ -587,13 +614,21 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await timeTravel.inSecs(7 * 24 * 60 * 60);
 
-          await expectRevert2(
-            votingInstance.execute(1, { from: user3 }),
-            "not enough support in casted votes"
+          const tx = await votingInstance.execute(1, { from: user3 });
+
+          await expectEvent.inTransaction(
+            tx.receipt.transactionHash,
+            votingInstance,
+            "ProposalFailed",
+            { proposalId: "1" }
           );
+
+          expect(
+            (await votingInstance.getProposal("1")).state.toString()
+          ).to.equal("2");
         });
 
-        it("cannot execute proposal with that did not enough % of possible votes", async () => {
+        it("can execute proposal with that did not enough % of possible votes, but doesn't perform the action", async () => {
           await votingInstance.placeVote(1, false, { from: user1 });
           await votingInstance.placeVote(1, true, { from: user3 });
           // casted votes = 66% yea, 33% nay
@@ -601,10 +636,18 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await timeTravel.inSecs(7 * 24 * 60 * 60);
 
-          await expectRevert2(
-            votingInstance.execute(1, { from: user3 }),
-            "not enough support in possible votes"
+          const tx = await votingInstance.execute(1, { from: user3 });
+
+          await expectEvent.inTransaction(
+            tx.receipt.transactionHash,
+            votingInstance,
+            "ProposalFailed",
+            { proposalId: "1" }
           );
+
+          expect(
+            (await votingInstance.getProposal("1")).state.toString()
+          ).to.equal("2");
         });
 
         it("success", async () => {
@@ -620,7 +663,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           let proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
 
           const oldGlobalParams =
             await protocolControllerInstance.globalParams();
@@ -638,7 +681,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(true);
+          expect(proposal.state.toString()).to.equal("1");
           expect(proposal.yea.toString()).to.equal(ethToWei(7));
           expect(proposal.nay.toString()).to.equal(ethToWei(3));
           expect(proposal.votingPower.toString()).to.equal(ethToWei(10));
@@ -727,7 +770,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
           expect(proposal.startDate.toString()).to.equal(
             blockTimestamp.toString()
           );
@@ -826,6 +869,30 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           );
         });
 
+        it("can create new proposal if existing proposal ended, didnt get enough support, but was executed", async () => {
+          await wrapDth(user1, 1);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.CountryFloorPrice,
+            encodeProposalArgs(PROPOSAL_KIND.CountryFloorPrice, [
+              asciiToHex("CG"),
+              ethToWei(7),
+            ]),
+            { from: user1 }
+          );
+
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
+
+          const tx = await votingInstance.execute(1, { from: user1 });
+
+          await expectEvent.inTransaction(
+            tx.receipt.transactionHash,
+            votingInstance,
+            "ProposalFailed",
+            { proposalId: "1" }
+          );
+        });
+
         it("can create new proposal if old proposal ended and was executed", async () => {
           await wrapDth(user1, 1);
 
@@ -874,7 +941,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
           expect(proposal.startDate.toString()).to.equal(
             blockTimestamp.toString()
           );
@@ -921,7 +988,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
           expect(proposal.yea.toString()).to.equal(ethToWei(1));
           expect(proposal.nay.toString()).to.equal("0");
         });
@@ -940,7 +1007,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await votingInstance.placeVote(1, false, { from: user2 });
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
           expect(proposal.yea.toString()).to.equal("0");
           expect(proposal.nay.toString()).to.equal(ethToWei(1));
         });
@@ -978,7 +1045,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           );
         });
 
-        it("cannot execute proposal with not enough % of casted votes", async () => {
+        it("can execute proposal with not enough % of casted votes, but doesn't perform the action", async () => {
           await votingInstance.placeVote(1, true, { from: user1 });
           await votingInstance.placeVote(1, false, { from: user2 });
           await votingInstance.placeVote(1, false, { from: user3 });
@@ -988,13 +1055,21 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await timeTravel.inSecs(7 * 24 * 60 * 60);
 
-          await expectRevert2(
-            votingInstance.execute(1, { from: user3 }),
-            "not enough support"
+          const tx = await votingInstance.execute(1, { from: user3 });
+
+          await expectEvent.inTransaction(
+            tx.receipt.transactionHash,
+            votingInstance,
+            "ProposalFailed",
+            { proposalId: "1" }
           );
+
+          expect(
+            (await votingInstance.getProposal("1")).state.toString()
+          ).to.equal("2");
         });
 
-        it("cannot execute proposal with that did not enough % of possible votes", async () => {
+        it("can execute proposal with that did not enough % of possible votes, but doesn't perform the action", async () => {
           await votingInstance.placeVote(1, false, { from: user1 });
           await votingInstance.placeVote(1, true, { from: user3 });
           // casted votes = 66% yea, 33% nay
@@ -1002,10 +1077,18 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await timeTravel.inSecs(7 * 24 * 60 * 60);
 
-          await expectRevert2(
-            votingInstance.execute(1, { from: user3 }),
-            "not enough support in possible votes"
+          const tx = await votingInstance.execute(1, { from: user3 });
+
+          await expectEvent.inTransaction(
+            tx.receipt.transactionHash,
+            votingInstance,
+            "ProposalFailed",
+            { proposalId: "1" }
           );
+
+          expect(
+            (await votingInstance.getProposal("1")).state.toString()
+          ).to.equal("2");
         });
 
         it("success", async () => {
@@ -1021,7 +1104,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           let proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
 
           const oldCountryFloorPrice =
             await protocolControllerInstance.floorStakesPrices(
@@ -1032,8 +1115,9 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await votingInstance.execute(1, { from: user3 });
 
           proposal = await votingInstance.getProposal(1);
+          expect(proposal.state.toString()).to.equal("1");
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(true);
+          expect(proposal.state.toString()).to.equal("1");
           expect(proposal.yea.toString()).to.equal(ethToWei(7));
           expect(proposal.nay.toString()).to.equal(ethToWei(3));
           expect(proposal.votingPower.toString()).to.equal(ethToWei(10));
@@ -1133,7 +1217,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
           expect(proposal.startDate.toString()).to.equal(
             blockTimestamp.toString()
           );
@@ -1220,6 +1304,29 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           );
         });
 
+        it("can create new proposal if existing proposal ended, didnt get enough support, but was executed", async () => {
+          await wrapDth(user1, 1);
+
+          await payTaxesToProtocolController(user1, 7);
+
+          await votingInstance.createProposal(
+            PROPOSAL_KIND.SendDth,
+            encodeProposalArgs(PROPOSAL_KIND.SendDth, [user6, ethToWei(6)]),
+            { from: user1 }
+          );
+
+          await timeTravel.inSecs(7 * 24 * 60 * 60);
+
+          const tx = await votingInstance.execute(1, { from: user1 });
+
+          await expectEvent.inTransaction(
+            tx.receipt.transactionHash,
+            votingInstance,
+            "ProposalFailed",
+            { proposalId: "1" }
+          );
+        });
+
         it("can create new proposal if old proposal ended and was executed", async () => {
           await wrapDth(user1, 1);
 
@@ -1263,7 +1370,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
           expect(proposal.startDate.toString()).to.equal(
             blockTimestamp.toString()
           );
@@ -1310,7 +1417,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
           expect(proposal.yea.toString()).to.equal(ethToWei(1));
           expect(proposal.nay.toString()).to.equal("0");
         });
@@ -1329,7 +1436,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await votingInstance.placeVote(1, false, { from: user2 });
           const proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
           expect(proposal.yea.toString()).to.equal("0");
           expect(proposal.nay.toString()).to.equal(ethToWei(1));
         });
@@ -1366,7 +1473,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           );
         });
 
-        it("cannot execute proposal with not enough % of casted votes", async () => {
+        it("can execute proposal with not enough % of casted votes, but doesn't perform the action", async () => {
           await votingInstance.placeVote(1, true, { from: user1 });
           await votingInstance.placeVote(1, false, { from: user2 });
           await votingInstance.placeVote(1, false, { from: user3 });
@@ -1376,13 +1483,21 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await timeTravel.inSecs(7 * 24 * 60 * 60);
 
-          await expectRevert2(
-            votingInstance.execute(1, { from: user3 }),
-            "not enough support in casted votes"
+          const tx = await votingInstance.execute(1, { from: user3 });
+
+          await expectEvent.inTransaction(
+            tx.receipt.transactionHash,
+            votingInstance,
+            "ProposalFailed",
+            { proposalId: "1" }
           );
+
+          expect(
+            (await votingInstance.getProposal("1")).state.toString()
+          ).to.equal("2");
         });
 
-        it("cannot execute proposal with that did not enough % of possible votes", async () => {
+        it("can execute proposal with not enough % of possible votes, but doesn't perform the action", async () => {
           await votingInstance.placeVote(1, false, { from: user1 });
           await votingInstance.placeVote(1, true, { from: user3 });
           // casted votes = 66% yea, 33% nay
@@ -1390,10 +1505,18 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           await timeTravel.inSecs(7 * 24 * 60 * 60);
 
-          await expectRevert2(
-            votingInstance.execute(1, { from: user3 }),
-            "not enough support in possible votes"
+          const tx = await votingInstance.execute(1, { from: user3 });
+
+          await expectEvent.inTransaction(
+            tx.receipt.transactionHash,
+            votingInstance,
+            "ProposalFailed",
+            { proposalId: "1" }
           );
+
+          expect(
+            (await votingInstance.getProposal("1")).state.toString()
+          ).to.equal("2");
         });
 
         it("success", async () => {
@@ -1409,7 +1532,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           let proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
 
           const oldProtocolControllerBalanceDth = (
             await dthInstance.balanceOf(protocolControllerInstance.address)
@@ -1425,8 +1548,8 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           await votingInstance.execute(1, { from: user3 });
 
           proposal = await votingInstance.getProposal(1);
+          expect(proposal.state.toString()).to.equal("1");
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(true);
           expect(proposal.yea.toString()).to.equal(ethToWei(7));
           expect(proposal.nay.toString()).to.equal(ethToWei(3));
           expect(proposal.votingPower.toString()).to.equal(ethToWei(10));
@@ -1486,11 +1609,11 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           let proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
 
           proposal = await votingInstance.getProposal(2);
           expect(proposal.open).to.equal(true);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
 
           await timeTravel.inSecs(7 * 24 * 60 * 60);
 
@@ -1507,13 +1630,13 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(false);
+          expect(proposal.state.toString()).to.equal("0");
 
           await votingInstance.execute(1, { from: user3 });
 
           proposal = await votingInstance.getProposal(1);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(true);
+          expect(proposal.state.toString()).to.equal("1");
 
           const newProtocolControllerBalanceDth_1 = (
             await dthInstance.balanceOf(protocolControllerInstance.address)
@@ -1538,7 +1661,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
 
           proposal = await votingInstance.getProposal(2);
           expect(proposal.open).to.equal(false);
-          expect(proposal.executed).to.equal(true);
+          expect(proposal.state.toString()).to.equal("1");
 
           const newProtocolControllerBalanceDth_2 = (
             await dthInstance.balanceOf(protocolControllerInstance.address)
