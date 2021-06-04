@@ -4,8 +4,8 @@ const infuraKey = "fj4jll3k.....";
 //
 // const fs = require('fs');
 // const mnemonic = fs.readFileSync(".secret").toString().trim();
-const { MNEMONIC, INFURA_KEY, BSC_RPC_URL } = process.env;
-console.log(BSC_RPC_URL, MNEMONIC);
+const { MNEMONIC, INFURA_KEY, BSC_RPC_URL, BSC_RPC_URL_TESTNET } = process.env;
+
 module.exports = {
   networks: {
     development: {
@@ -24,7 +24,7 @@ module.exports = {
     bsc: {
       provider: () => new HDWalletProvider(MNEMONIC, BSC_RPC_URL),
       network_id: 56,
-      gasPrice: 5000000000,
+      gasPrice: 10000000000,
       // gas: 6700000,
       // gasPrice: 10000000000,
       // skipDryRun: true,

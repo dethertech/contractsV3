@@ -121,6 +121,10 @@ module.exports = async (deployer, network, accounts) => {
     dthWrapper = await DthWrapper.at(
       "0xe3c6Dad22785EA3166e692bCEb02DFeDDcde825C"
     );
+  } else if (network == "bsc") {
+    dthWrapper = await DthWrapper.at(
+      "0x91aF542BcBB552D6277205a16A58f131767eb0DA"
+    );
   } else {
     await deployer.deploy(DthWrapper, dth.address);
     dthWrapper = await DthWrapper.deployed();
@@ -135,8 +139,8 @@ module.exports = async (deployer, network, accounts) => {
     toVotingPerc(25),
     toVotingPerc(60),
     ethToWei(10),
-    45 * 60 // for mainnet 5 jours
-    // 5 * 24 * 60 * 60 // for mainnet 5 jours
+    45 * 60
+    // 5 * 24 * 60 * 60 // for mainnet 5 days
   );
   const voting = await Voting.deployed();
 

@@ -2,7 +2,7 @@ pragma solidity ^0.8.1;
 
 import "../interfaces/IAnyswapV3ERC20.sol";
 import "../interfaces/ITransferReceiver.sol";
-import "../interfaces/IERC223ReceivingContract.sol";
+// import "../interfaces/IERC223ReceivingContract.sol";
 import "./CheckpointingLib.sol";
 
 // contract DthWrapper is IERC223ReceivingContract {
