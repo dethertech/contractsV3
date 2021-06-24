@@ -35,7 +35,7 @@ contract ProtocolController is IProtocolController, ITransferReceiver {
 
     uint256 public dthBalance;
 
-    mapping(bytes2 => uint256) public floorStakesPrices;
+    mapping(bytes2 => uint256) floorStakesPrices;
 
     GlobalParams public globalParams =
         GlobalParams({

@@ -1056,10 +1056,10 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           expect(proposal.state.toString()).to.equal("0");
 
           const oldCountryFloorPrice =
-            await protocolControllerInstance.floorStakesPrices(
+            await protocolControllerInstance.getCountryFloorPrice(
               asciiToHex("CG")
             );
-          expect(oldCountryFloorPrice.toString()).to.equal(ethToWei(0));
+          expect(oldCountryFloorPrice.toString()).to.equal(ethToWei(100));
 
           await votingInstance.execute(1, { from: user3 });
 
@@ -1072,7 +1072,7 @@ contract("ProtocolController + Voting + DthWrapper", (accounts) => {
           expect(proposal.votingPower.toString()).to.equal(ethToWei(10));
 
           const newCountryFloorPrice =
-            await protocolControllerInstance.floorStakesPrices(
+            await protocolControllerInstance.getCountryFloorPrice(
               asciiToHex("CG")
             );
           expect(newCountryFloorPrice.toString()).to.equal(ethToWei(7));
