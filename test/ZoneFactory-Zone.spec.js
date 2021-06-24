@@ -294,11 +294,9 @@ contract("ZoneFactory + Zone", (accounts) => {
   });
 
   const createZone = async (from, dthAmount, countryCode, geohash) => {
-    console.log("test createZone");
     const tx = await dthInstance.deposit(ethToWei(dthAmount), from, {
       from: owner,
     });
-    console.log("tx create zone", tx);
     const txCreate = await web3.eth.sendTransaction({
       from,
       to: dthInstance.address,
@@ -311,7 +309,6 @@ contract("ZoneFactory + Zone", (accounts) => {
       value: 0,
       gas: 4700000,
     });
-    console.log("txCreate", txCreate);
     const zoneAddress = await zoneFactoryInstance.geohashToZone(
       asciiToHex(geohash)
     );
@@ -2337,6 +2334,7 @@ contract("ZoneFactory + Zone", (accounts) => {
           await placeBid(user2, MIN_ZONE_DTH_STAKE + 11, zoneInstance.address);
 
           const lastAuction = auctionToObj(await zoneInstance.getLastAuction());
+          const { auction, highestBid } = await zoneInstance.getAuction(1);
           expect(lastAuction.id.toNumber()).to.equal(1);
           expect(lastAuction.state.toString()).to.equal(
             ZONE_AUCTION_STATE_STARTED

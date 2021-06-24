@@ -13,6 +13,7 @@ module.exports = {
       port: 8545,
       network_id: "*", // Match any network id
       gas: 6700000,
+      gasPrice: 5000000000,
     },
     bscTestnet: {
       provider: () => new HDWalletProvider(MNEMONIC, BSC_RPC_URL_TESTNET),
@@ -24,7 +25,7 @@ module.exports = {
     bsc: {
       provider: () => new HDWalletProvider(MNEMONIC, BSC_RPC_URL),
       network_id: 56,
-      gasPrice: 10000000000,
+      gasPrice: 5000000000,
       // gas: 6700000,
       // gasPrice: 10000000000,
       // skipDryRun: true,

@@ -138,9 +138,9 @@ module.exports = async (deployer, network, accounts) => {
     dthWrapper.address,
     toVotingPerc(25),
     toVotingPerc(60),
-    ethToWei(10),
-    45 * 60
-    // 5 * 24 * 60 * 60 // for mainnet 5 days
+    ethToWei(10000), // 10K WDTH to create proposal
+    // 45 * 60 // for test
+    5 * 24 * 60 * 60 // for mainnet 5 days
   );
   const voting = await Voting.deployed();
 

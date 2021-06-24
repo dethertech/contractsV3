@@ -232,12 +232,11 @@ contract ProtocolController is IProtocolController, ITransferReceiver {
         _onlyVoting();
 
         // to avoid Dos with revert in case recipient is a contract, or not enough dth in this contract
-        bytes memory payload =
-            abi.encodeWithSignature(
-                "transfer(address,uint256)",
-                _recipient,
-                _amount
-            );
+        bytes memory payload = abi.encodeWithSignature(
+            "transfer(address,uint256)",
+            _recipient,
+            _amount
+        );
         (bool success, ) = address(dth).call(payload);
         if (!success) emit WithdrawDthTransferFailed(_recipient, _amount);
         else emit WithdrawDth(_recipient, _amount, _id);
